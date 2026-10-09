@@ -1,7 +1,5 @@
-# Zajištění správného českého času (UTC + posun podle naší zóny v ČR)
-$timeZone = [TimeZoneInfo]::FindSystemTimeZoneById("Central Europe Standard Time");
-$localTime = [TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(), $timeZone);
-$aktualniCas = $localTime.ToString("dd.MM.yyyy HH:mm:ss");
+# Zajištění správného českého času (UTC + 2 hodiny posun pro střední Evropu)
+$aktualniCas = (Get-Date).ToUniversalTime().AddHours(2).ToString("dd.MM.yyyy HH:mm:ss");
 
 $html = @("<!DOCTYPE html><html lang='cs'><head><meta charset='UTF-8'><title>Minecraft Statistiky</title><style>body { font-family: sans-serif; background: #1e1e1e; color: #fff; padding: 40px; } h1 { color: #5cff5c; margin-bottom: 5px; } .update-time { color: #aaa; font-size: 0.9em; margin-bottom: 25px; border-bottom: 2px solid #444; padding-bottom: 15px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #444; padding: 12px; text-align: left; vertical-align: middle; } th { background: #2e2e2e; color: #5cff5c; } tr:nth-child(even) { background: #252525; } tr:hover { background: #333; } .player-cell { display: flex; align-items: center; gap: 10px; } .player-head { width: 32px; height: 32px; image-rendering: pixelated; border-radius: 4px; }</style></head><body><h1>Statistiky hráčů — Forever Reeds</h1><div class='update-time'>Poslední aktualizace: $aktualniCas</div><table><tr><th>Hráč (Nick)</th><th>Odehraný čas</th><th>Úmrtí</th><th>Čas od posl. smrti</th><th>Zabitá monstra</th><th>Vytěženo bloků</th><th>Položeno bloků</th><th>Obchody s villagery</th><th>Nachozeno km</th><th>Zprávy v chatu</th></tr>");
 
