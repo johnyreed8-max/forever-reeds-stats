@@ -52,10 +52,10 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     $hraciData += $hrac
 }
 
-# Seřazení a opravený odkaz na avatar hlavy včetně kompletní URL adresy
+# Kompletně opravené sestavení URL adresy pro skiny
 $hraciData | Sort-Object Hours -Descending | ForEach-Object {
     $avatarUrl = "https://mc-heads.net" + $_.Nickname + "/32";
-    $html += '<tr><td><div class="player-cell"><img class="player-head" src="' + $avatarUrl + '" alt="skin"><strong>' + $_.Nickname + '</strong></div></td><td>' + $_.Hours + ' hod.</td><td>' + $_.Deaths + '</td><td>' + $_.SinceDeath + '</td><td>' + $_.MobKills + '</td><td>' + $_.BlocksMined + '</td><td>' + $_.BlocksPlaced + '</td><td>' + $_.Traded + '</td><td>' + $_.Distance + ' km</td><td>' + $_.Talked + '</td></tr>';
+    $html += '<tr><td><div class="player-cell"><img class="player-head" src="' + $avatarUrl + '" alt="head"><strong>' + $_.Nickname + '</strong></div></td><td>' + $_.Hours + ' hod.</td><td>' + $_.Deaths + '</td><td>' + $_.SinceDeath + '</td><td>' + $_.MobKills + '</td><td>' + $_.BlocksMined + '</td><td>' + $_.BlocksPlaced + '</td><td>' + $_.Traded + '</td><td>' + $_.Distance + ' km</td><td>' + $_.Talked + '</td></tr>';
 }
 
 $html += '</table></body></html>';
