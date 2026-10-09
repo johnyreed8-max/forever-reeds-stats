@@ -33,6 +33,8 @@ jobs:
       with:
         publish-dir: './public'
         production-deploy: true
-        clear-idempotency-key: true
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        deploy-message: "Automaticky update z GitHub Actions"
+      env:
         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
