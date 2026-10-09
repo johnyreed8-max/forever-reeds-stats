@@ -2,9 +2,8 @@ name: Minecraft Stats Auto Updater
 
 on:
   schedule:
-    # Spustí se automaticky každou hodinu
     - cron: '0 * * * *'
-  workflow_dispatch: # Přidá tlačítko pro ruční spuštění
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -14,10 +13,8 @@ jobs:
     - name: Checkout repozitáře
       uses: actions/checkout@v4
 
-    - name: Příprava složek
-      run: |
-        mkdir -p stats
-        mkdir -p public
+    - name: Příprava složky pro statistiky
+      run: mkdir -p stats
 
     - name: Stažení statistik z Hostify FTP
       run: |
@@ -28,13 +25,7 @@ jobs:
       run: |
         ./generator.ps1
 
-    - name: Nahrání hotového webu na Netlify
-      uses: nwtgck/actions-netlify@v3.0
-      with:
-        publish-dir: './public'
-        production-deploy: true
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        deploy-message: "Automaticky update z GitHub Actions"
-      env:
-        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+    - name: Instalace Netlify CLI a odeslání webu
+      run: |
+        npm install -g netlify-cli
+        netlify deploy --prod --dir=. --auth="${{ secrets.NETLIFY_AUTH_TOKEN }}" --site="${{ secrets.NETLIFY_SITE_ID }}" -m "Automaticky update z GitHub Actions"
