@@ -1,0 +1,37 @@
+name: Minecraft Stats Auto Updater
+
+on:
+  schedule:
+    # Spustí se automaticky každou hodinu
+    - cron: '0 * * * *'
+  workflow_dispatch: # Přidá tlačítko pro ruční spuštění
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repozitáře
+      uses: actions/checkout@v4
+
+    - name: Příprava složek
+      run: |
+        mkdir -p stats
+        mkdir -p public
+
+    - name: Stažení statistik z Hostify FTP
+      run: |
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/players/stats/*.json" --no-directories --accept="*.json" -P "stats" -q
+
+    - name: Spuštění kompilace do HTML
+      shell: pwsh
+      run: |
+        ./generator.ps1
+
+    - name: Nahrání hotového webu na Netlify
+      uses: nwtgck/actions-netlify@v3.0
+      with:
+        publish-dir: './public'
+        production-deploy: true
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
