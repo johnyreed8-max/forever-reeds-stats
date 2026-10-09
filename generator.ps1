@@ -59,3 +59,4 @@ $hraciData | Sort-Object Hours -Descending | ForEach-Object {
 
 $html += '</table></body></html>';
 $html | Out-File -FilePath 'public/index.html' -Encoding utf8
+
