@@ -1,7 +1,7 @@
 # Zajištění správného českého času (UTC + 2 hodiny posun pro střední Evropu)
 $aktualniCas = (Get-Date).ToUniversalTime().AddHours(2).ToString("dd.MM.yyyy HH:mm:ss");
 
-$html = @("<!DOCTYPE html><html lang='cs'><head><meta charset='UTF-8'><title>Minecraft Statistiky</title><style>body { font-family: sans-serif; background: #1e1e1e; color: #fff; padding: 40px; } h1 { color: #5cff5c; margin-bottom: 5px; } .update-time { color: #aaa; font-size: 0.9em; margin-bottom: 25px; border-bottom: 2px solid #444; padding-bottom: 15px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #444; padding: 12px; text-align: left; vertical-align: middle; } th { background: #2e2e2e; color: #5cff5c; } tr:nth-child(even) { background: #252525; } tr:hover { background: #333; } .player-cell { display: flex; align-items: center; gap: 10px; } .player-head { width: 32px; height: 32px; image-rendering: pixelated; border-radius: 4px; }</style></head><body><h1>Statistiky hráčů — Forever Reeds</h1><div class='update-time'>Poslední aktualizace: $aktualniCas</div><table><tr><th>Hráč (Nick)</th><th>Odehraný čas</th><th>Úmrtí</th><th>Čas od posl. smrti</th><th>Zabitá monstra</th><th>Vytěženo bloků</th><th>Položeno bloků</th><th>Obchody s villagery</th><th>Nachozeno km</th><th>Zprávy v chatu</th></tr>");
+$html = @("<!DOCTYPE html><html lang='cs'><head><meta charset='UTF-8'><title>Minecraft Statistiky</title><style>body { font-family: sans-serif; background: #1e1e1e; color: #fff; padding: 40px; } h1 { color: #5cff5c; margin-bottom: 5px; } .update-time { color: #aaa; font-size: 0.9em; margin-bottom: 25px; border-bottom: 2px solid #444; padding-bottom: 15px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #444; padding: 12px; text-align: left; vertical-align: middle; } th { background: #2e2e2e; color: #5cff5c; } tr:nth-child(even) { background: #252525; } tr:hover { background: #333; }</style></head><body><h1>Statistiky hráčů — Forever Reeds</h1><div class='update-time'>Poslední aktualizace: $aktualniCas</div><table><tr><th>Hráč (Nick)</th><th>Odehraný čas</th><th>Úmrtí</th><th>Čas od posl. smrti</th><th>Zabitá monstra</th><th>Vytěženo bloků</th><th>Položeno bloků</th><th>Obchody s villagery</th><th>Nachozeno km</th><th>Zprávy v chatu</th></tr>");
 
 # Přesné spárování UUID podle vašeho serveru
 $jmena = @{
@@ -52,10 +52,9 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     $hraciData += $hrac
 }
 
-# Kompletně opravené sestavení URL adresy pro skiny
+# Čisté vygenerování řádků bez skinů
 $hraciData | Sort-Object Hours -Descending | ForEach-Object {
-    $avatarUrl = "https://mc-heads.net" + $_.Nickname + "/32";
-    $html += '<tr><td><div class="player-cell"><img class="player-head" src="' + $avatarUrl + '" alt="head"><strong>' + $_.Nickname + '</strong></div></td><td>' + $_.Hours + ' hod.</td><td>' + $_.Deaths + '</td><td>' + $_.SinceDeath + '</td><td>' + $_.MobKills + '</td><td>' + $_.BlocksMined + '</td><td>' + $_.BlocksPlaced + '</td><td>' + $_.Traded + '</td><td>' + $_.Distance + ' km</td><td>' + $_.Talked + '</td></tr>';
+    $html += '<tr><td><strong>' + $_.Nickname + '</strong></td><td>' + $_.Hours + ' hod.</td><td>' + $_.Deaths + '</td><td>' + $_.SinceDeath + '</td><td>' + $_.MobKills + '</td><td>' + $_.BlocksMined + '</td><td>' + $_.BlocksPlaced + '</td><td>' + $_.Traded + '</td><td>' + $_.Distance + ' km</td><td>' + $_.Talked + '</td></tr>';
 }
 
 $html += '</table></body></html>';
