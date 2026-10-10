@@ -163,7 +163,8 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
 
 
 # Append statistics rows
-$html += Add-StatRow "Time Played" "TimePlayedText" "" $totalHours
+$html += Add-StatRow "Time Played" "TimePlayedText" "" $totalHours $false "Hours"
+
 
 $html += Add-StatRow "Deaths" "Deaths" "" $totalDeaths -lowerWins $true
 $html += Add-StatRow "Time Since Last Death" "SinceDeathHours" "hrs" ""
