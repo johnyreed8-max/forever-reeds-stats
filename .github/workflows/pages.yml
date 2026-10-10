@@ -1,11 +1,15 @@
-name: Minecraft Stats Auto Updater
+name: Pouze publikování na GitHub Pages
 
 on:
   schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
+    # Bude se spouštět každou hodinu, ale o 10 minut později (v celou a 10 minut),
+    # aby měl váš první generátor dost času stáhnout data a vytvořit nový index.html
+    - cron: '10 * * * *'
+  push:
+    branches:
+      - main # Spustí se také automaticky pokaždé, když váš první skript udělá commit do hlavní větve
+  workflow_dispatch: # Umožní vám web publikovat ručně
 
-# Nastavení oprávnění pro bezpečné nasazení na GitHub Pages
 permissions:
   contents: read
   pages: write
@@ -16,33 +20,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest # ZDE BYLO PŮVODNĚ WINDOWS, PŘEPLI JSME NA LINUX
-
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
     steps:
-    - name: Checkout repozitáře
-      uses: actions/checkout@v4
+      - name: Načtení kódu z GitHubu
+        uses: actions/checkout@v4
 
-    - name: Příprava složky pro statistiky
-      run: mkdir -p stats
+      - name: Nastavení GitHub Pages prostředí
+        uses: actions/configure-pages@v5
 
-    - name: Stažení statistik z Hostify FTP
-      run: |
-        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/players/stats/*.json" --no-directories --accept="*.json" -P "stats" -q
+      - name: Nahrání hotového index.html
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Vezme hotový index.html z kořene repozitáře
+          path: '.' 
 
-    - name: Spuštění kompilace do HTML
-      shell: pwsh
-      run: |
-        ./generator.ps1
-
-    - name: Nastavení GitHub Pages prostředí
-      uses: actions/configure-pages@v5
-
-    - name: Nahrání vygenerovaného webu jako artefakt
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: '.'
-
-    - name: Nasazení na GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
+      - name: Nasazení na GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
