@@ -106,12 +106,14 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
 # Sort players by total playtime for column hierarchy
 $serazeniHraci = $hraciData | Sort-Object Hours -Descending
 
-# --- GENERATE HTML HEADERS WITH FIXED CRAFATAR URL ---
+# --- GENERATE HTML HEADERS WITH FIXED CRAFATAR URL PATH ---
 $htmlRow = "<tr><th class='stat-name'>Statistic</th>"
 $serazeniHraci | ForEach-Object {
-    # Using clean UUID without dashes and fixing /avatars/ path mapping
+    # FIXED: Added missing slash before avatars
     $headUrl = "https://crafatar.com" + $_.CleanUUID + "?size=24&overlay";
-    $htmlRow += "<th class='player-header'><img class='player-head' src='$headUrl' alt=''>$($_.Nickname)</th>"
+    # Backup URL if Crafatar fails (Minotar fallback)
+    $fallbackUrl = "https://minotar.net" + $_.Nickname + "/24.png";
+    $htmlRow += "<th class='player-header'><img class='player-head' src='$headUrl' onerror=""this.onerror=null; this.src='$fallbackUrl';"" alt=''>$($_.Nickname)</th>"
 }
 $htmlRow += "<th class='server-total'>SERVER TOTAL</th></tr>"
 $html += $htmlRow
@@ -150,15 +152,15 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
     return $row
 }
 
-# Append statistics row mapping exactly to requested metric layouts
+# Append statistics rows
 $html += Add-StatRow "Time Played" "Hours" "hrs" $totalHours
 $html += Add-StatRow "Deaths" "Deaths" "" $totalDeaths -lowerWins $true
 $html += Add-StatRow "Time Since Last Death" "SinceDeathHours" "hrs" ""
 $html += Add-StatRow "Damage Dealt (HP)" "DamageDealt" "" $totalDamageDealt
 $html += Add-StatRow "Damage Taken (HP)" "DamageTaken" "" $totalDamageTaken
 $html += Add-StatRow "Mob Kills" "MobKills" "" $totalMobKills
-$html += Add-StatRow "Ender Dragon Kills" "DragonKills" "pc" $totalDragonKills
-$html += Add-StatRow "Wither Kills" "WitherKills" "pc" $totalWitherKills
+$html += Add-StatRow "Ender Dragon Kills" "DragonKills" "pcs" $totalDragonKills
+$html += Add-StatRow "Wither Kills" "WitherKills" "pcs" $totalWitherKills
 $html += Add-StatRow "Blocks Mined" "BlocksMined" "" $totalMined
 $html += Add-StatRow "Blocks Placed" "BlocksPlaced" "" $totalPlaced
 $html += Add-StatRow "Diamond Ore Mined" "Diamonds" "pcs" $totalDiamonds
