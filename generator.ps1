@@ -24,6 +24,7 @@ $hraciData = @()
 # Globální součty serveru
 $totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalTalked = 0;
 $totalDamageDealt = 0; $totalDamageTaken = 0; $totalDiamonds = 0; $totalDebris = 0; $totalJumps = 0;
+$totalDragonKills = 0; $totalCrafted = 0; $totalBred = 0;
 
 Get-ChildItem 'stats/*.json' | ForEach-Object {
     $uuid = $_.BaseName;
@@ -31,12 +32,13 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     $json = Get-Content $_.FullName -Raw | ConvertFrom-Json;
     $custom = $json.stats.'minecraft:custom';
     $mined = $json.stats.'minecraft:mined';
+    $killed = $json.stats.'minecraft:killed';
+    $crafted = $json.stats.'minecraft:crafted';
     
     # Základní časy a úmrtí
     $ticks = 0; if ($custom.'minecraft:play_time') { $ticks = $custom.'minecraft:play_time' } elseif ($custom.'minecraft:play_one_minute') { $ticks = $custom.'minecraft:play_one_minute' };
     $hours = [Math]::Round($ticks / 20 / 60 / 60, 1);
     $deaths = if ($custom.'minecraft:deaths') { $custom.'minecraft:deaths' } else { 0 };
-    
     $sinceDeathTicks = if ($custom.'minecraft:time_since_death') { $custom.'minecraft:time_since_death' } else { 0 };
     $sinceDeathHours = [Math]::Round($sinceDeathTicks / 20 / 60 / 60, 1);
     
@@ -44,30 +46,37 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     $damageDealt = if ($custom.'minecraft:damage_dealt') { [Math]::Round($custom.'minecraft:damage_dealt' / 10, 0) } else { 0 };
     $damageTaken = if ($custom.'minecraft:damage_taken') { [Math]::Round($custom.'minecraft:damage_taken' / 10, 0) } else { 0 };
     $mobKills = if ($custom.'minecraft:mob_kills') { $custom.'minecraft:mob_kills' } else { 0 };
+    $dragonKills = if ($killed.'minecraft:ender_dragon') { $killed.'minecraft:ender_dragon' } else { 0 };
     
-    # Blokování, pohyb a chat
+    # Blokování, pohyb, crafting, zvířata a chat
     $talked = if ($custom.'minecraft:talked_to_villager') { $custom.'minecraft:talked_to_villager' } else { 0 };
     $traded = if ($custom.'minecraft:traded_with_villager') { $custom.'minecraft:traded_with_villager' } else { 0 };
     $jumps = if ($custom.'minecraft:jump') { $custom.'minecraft:jump' } else { 0 };
+    $animalsBred = if ($custom.'minecraft:animals_bred') { $custom.'minecraft:animals_bred' } else { 0 };
+    
+    $totalPlayerCrafted = 0; if ($crafted) { foreach ($p in $crafted.psobject.Properties) { $totalPlayerCrafted += $p.Value } };
+    
     $walk = if ($custom.'minecraft:walk_one_cm') { $custom.'minecraft:walk_one_cm' } else { 0 };
     $sprint = if ($custom.'minecraft:sprint_one_cm') { $custom.'minecraft:sprint_one_cm' } else { 0 };
     $distanceKm = [Math]::Round(($walk + $sprint) / 100 / 1000, 1);
     
-    # Těžba a stavění obecně
+    # Těžba a stavění
     $blocksMined = 0; if ($mined) { foreach ($p in $mined.psobject.Properties) { $blocksMined += $p.Value } };
     $blocksPlaced = 0; if ($json.stats.'minecraft:used') { foreach ($p in $json.stats.'minecraft:used'.psobject.Properties) { if ($p.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { $blocksPlaced += $p.Value } } };
     
-    # Specifické vzácné rudy
+    # Specifické rudy
     $diamondOre = if ($mined.'minecraft:diamond_ore') { $mined.'minecraft:diamond_ore' } else { 0 };
     $deepslateDiamondOre = if ($mined.'minecraft:deepslate_diamond_ore') { $mined.'minecraft:deepslate_diamond_ore' } else { 0 };
     $totalPlayerDiamonds = $diamondOre + $deepslateDiamondOre;
     $ancientDebris = if ($mined.'minecraft:ancient_debris') { $mined.'minecraft:ancient_debris' } else { 0 };
     
-    # Sčítání globálních hodnot
+    # Sčítání globálních hodnot serveru
     $totalHours += $hours; $totalDeaths += $deaths; $totalMobKills += $mobKills; $totalMined += $blocksMined; $totalPlaced += $blocksPlaced; $totalTraded += $traded; $totalDistance += $distanceKm; $totalTalked += $talked;
     $totalDamageDealt += $damageDealt; $totalDamageTaken += $damageTaken; $totalDiamonds += $totalPlayerDiamonds; $totalDebris += $ancientDebris; $totalJumps += $jumps;
+    $totalDragonKills += $dragonKills; $totalCrafted += $totalPlayerCrafted; $totalBred += $animalsBred;
 
     $hraciData += [PSCustomObject]@{
+        UUID            = $uuid
         Nickname        = $nickname
         Hours           = $hours
         Deaths          = $deaths
@@ -75,57 +84,63 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
         DamageDealt     = $damageDealt
         DamageTaken     = $damageTaken
         MobKills        = $mobKills
+        DragonKills     = $dragonKills
         BlocksMined     = $blocksMined
         BlocksPlaced    = $blocksPlaced
         Diamonds        = $totalPlayerDiamonds
         Debris          = $ancientDebris
         Distance        = $distanceKm
         Jumps           = $jumps
+        Crafted         = $totalPlayerCrafted
         Traded          = $traded
+        Bred            = $animalsBred
         Talked          = $talked
     }
 }
 
-# Seřazení hráčů podle odehraného času (stále určuje pořadí sloupců)
+# Seřazení hráčů podle herního času pro pořadí sloupců
 $serazeniHraci = $hraciData | Sort-Object Hours -Descending
 
-# --- GENEROVÁNÍ HTML ŘÁDKŮ ---
-
-# 1. Řádek: Záhlaví s přezdívkami a 100% FUNKČNÍMI HLAVAMI
+# --- GENEROVÁNÍ HTML ŽÁHLAVÍ S NOVÝM STABILNÍM API PRO HLAVY ---
 $htmlRow = "<tr><th class='stat-name'>Statistika</th>"
 $serazeniHraci | ForEach-Object {
-    $headUrl = "https://minotar.net" + $_.Nickname + "/24.png";
+    # Crafatar API je 100% stabilní a vyžaduje UUID hráče
+    $headUrl = "https://crafatar.com" + $_.UUID + "?size=24&overlay";
     $htmlRow += "<th class='player-header'><img class='player-head' src='$headUrl' alt=''>$($_.Nickname)</th>"
 }
 $htmlRow += "<th class='server-total'>CELKEM SERVER</th></tr>"
 $html += $htmlRow
 
-# Pomocná funkce s automatickým vyhodnocením koruny a mezer v číslech
+# Pomocná funkce s vyhodnocením 1., 2. a 3. místa (Zlato, Stříbro, Bronz)
 function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", $lowerWins = $false) {
-    # Hledání nejlepší hodnoty pro udělení korunky
-    $bestValue = if ($lowerWins) {
-        ($serazeniHraci | Measure-Object $property -Minimum).Minimum
+    # Seřazení hodnot pro určení medailí
+    $values = if ($lowerWins) {
+        $serazeniHraci | Select-Object -ExpandProperty $property | Sort-Object -Ascending
     } else {
-        ($serazeniHraci | Measure-Object $property -Maximum).Maximum
+        $serazeniHraci | Select-Object -ExpandProperty $property | Sort-Object -Descending
     }
+
+    $top1 = $values[0]
+    $top2 = $values[1]
+    $top3 = $values[2]
 
     $row = "<tr><td class='stat-name'>$label</td>"
     foreach ($hrac in $serazeniHraci) {
         $val = $hrac.$property
-        
-        # Formátování čísel mezerou (pokud se jedná o číslo)
         $formattedVal = if ($val -is [ValueType]) { $val.ToString("N0", $czCulture) } else { $val.ToString() }
         
-        # Přidání korunky, pokud hráč drží prvenství (a hodnota není 0 u trestných statistik)
-        $crown = ""
-        if ($val -eq $bestValue -and (-not ($lowerWins -and $val -eq 0 -and $property -eq "Deaths"))) {
-            $crown = " 👑"
+        # Logika přidělování medailí
+        $medal = ""
+        # Výjimka: Pokud je hodnota 0, medaile se nedávají (např. 0 zabitých draků nebo 0 úmrtí u trestné statistiky)
+        if ($val -ne 0 -or (-not $lowerWins -and $property -ne "Deaths")) {
+            if ($val -eq $top1) { $medal = " 👑" }
+            elseif ($val -eq $top2 -and $top2 -ne $top1) { $medal = " 🥈" }
+            elseif ($val -eq $top3 -and $top3 -ne $top2 -and $top3 -ne $top1) { $medal = " 🥉" }
         }
         
-        $row += "<td>$formattedVal $formatSuffix$crown</td>"
+        $row += "<td>$formattedVal $formatSuffix$medal</td>"
     }
     
-    # Formátování celkové sumy serveru
     $formattedServerVal = if ($serverValue -is [ValueType]) { $serverValue.ToString("N0", $czCulture) } else { $serverValue }
     $finalServerVal = if ($serverValue -ne "") { $formattedServerVal } else { "—" }
     
@@ -133,21 +148,14 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
     return $row
 }
 
-# Přidávání jednotlivých řádků statistik pod sebe
+# Přidávání jednotlivých řádků statistik přesně podle vašeho seznamu
 $html += Add-StatRow "Odehraný čas" "Hours" "hod." $totalHours
-$html += Add-StatRow "Úmrtí" "Deaths" "" $totalDeaths -lowerWins $true # Zde vyhrává nejnižší počet
+$html += Add-StatRow "Úmrtí" "Deaths" "" $totalDeaths -lowerWins $true # Méně je lépe
 $html += Add-StatRow "Čas od poslední smrti" "SinceDeathHours" "hod." ""
 $html += Add-StatRow "Rozdané zranění (HP)" "DamageDealt" "" $totalDamageDealt
 $html += Add-StatRow "Obdržené zranění (HP)" "DamageTaken" "" $totalDamageTaken
 $html += Add-StatRow "Zabitá monstra" "MobKills" "" $totalMobKills
+$html += Add-StatRow "Zabití ender draka" "DragonKills" "ks" $totalDragonKills
 $html += Add-StatRow "Vytěženo bloků" "BlocksMined" "" $totalMined
 $html += Add-StatRow "Položeno bloků" "BlocksPlaced" "" $totalPlaced
 $html += Add-StatRow "Vytěženo diamantové rudy" "Diamonds" "ks" $totalDiamonds
-$html += Add-StatRow "Vytěženo Ancient Debris" "Debris" "ks" $totalDebris
-$html += Add-StatRow "Nachozeno km" "Distance" "km" $totalDistance
-$html += Add-StatRow "Počet skoků" "Jumps" "" $totalJumps
-$html += Add-StatRow "Obchody s villagery" "Traded" "" $totalTraded
-$html += Add-StatRow "Zprávy v chatu" "Talked" "" $totalTalked
-
-$html += "</table></body></html>"
-$html | Out-File -FilePath 'index.html' -Encoding utf8
