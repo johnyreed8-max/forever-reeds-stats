@@ -1,0 +1,47 @@
+name: Minecraft Stats Auto Updater
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repozitáře
+      uses: actions/checkout@v4
+
+    - name: Příprava složky pro statistiky
+      run: mkdir -p stats
+
+    - name: Stažení statistik z Hostify FTP
+      run: |
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/players/stats/*.json" --no-directories --accept="*.json" -P "stats" -q
+
+    - name: Spuštění kompilace do HTML
+      shell: pwsh
+      run: |
+        ./generator.ps1
+
+    - name: Nastavení GitHub Pages prostředí
+      uses: actions/configure-pages@v5
+
+    - name: Nahrání vygenerovaného webu jako artefakt
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '.'
+
+    - name: Nasazení na GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
