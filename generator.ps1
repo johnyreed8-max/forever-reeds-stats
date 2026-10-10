@@ -1,15 +1,15 @@
-# Pojistka: Pokud složka stats neexistuje, skript ji sám vytvoří
+# Safety check: If stats folder does not exist, create it
 if (-not (Test-Path "stats")) { New-Item -ItemType Directory -Path "stats" }
 
-# Zajištění správného českého času (UTC + 2 hodiny posun pro střední Evropu)
-$aktualniCas = (Get-Date).ToUniversalTime().AddHours(2).ToString("dd.MM.yyyy HH:mm:ss");
+# Ensure correct time formatting
+$currentDateTime = (Get-Date).ToUniversalTime().AddHours(2).ToString("dd.MM.yyyy HH:mm:ss");
 
-# Nastavení formátování pro oddělování tisíců mezerou podle české kultury
-$czCulture = [System.Globalization.CultureInfo]::GetCultureInfo("cs-CZ")
+# Set number formatting to use spaces as thousands separators (English text, formatted numbers)
+$usCulture = [System.Globalization.CultureInfo]::GetCultureInfo("cs-CZ")
 
-$html = @("<!DOCTYPE html><html lang='cs'><head><meta charset='UTF-8'><title>Minecraft Statistiky</title><style>body { font-family: sans-serif; background: #1e1e1e; color: #fff; padding: 40px; } h1 { color: #5cff5c; margin-bottom: 5px; } .update-time { color: #aaa; font-size: 0.9em; margin-bottom: 25px; border-bottom: 2px solid #444; padding-bottom: 15px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; } th, td { border: 1px solid #444; padding: 12px; text-align: left; vertical-align: middle; } th { background: #2e2e2e; color: #5cff5c; } tr:nth-child(even) { background: #252525; } tr:hover { background: #333; } .stat-name { font-weight: bold; background: #2a2a2a; width: 240px; } .server-total { font-weight: bold; color: #5cff5c; background: #222; } .player-head { width: 24px; height: 24px; vertical-align: middle; margin-right: 10px; border-radius: 3px; image-rendering: pixelated; } .player-header { font-weight: bold; text-align: left; }</style></head><body><h1>Statistiky hráčů — Forever Reeds</h1><div class='update-time'>Poslední aktualizace: $aktualniCas</div><table>");
+$html = @("<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><title>Minecraft Player Statistics</title><style>body { font-family: sans-serif; background: #1e1e1e; color: #fff; padding: 40px; } h1 { color: #5cff5c; margin-bottom: 5px; } .update-time { color: #aaa; font-size: 0.9em; margin-bottom: 25px; border-bottom: 2px solid #444; padding-bottom: 15px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; } th, td { border: 1px solid #444; padding: 12px; text-align: left; vertical-align: middle; } th { background: #2e2e2e; color: #5cff5c; } tr:nth-child(even) { background: #252525; } tr:hover { background: #333; } .stat-name { font-weight: bold; background: #2a2a2a; width: 240px; } .server-total { font-weight: bold; color: #5cff5c; background: #222; } .player-head { width: 24px; height: 24px; vertical-align: middle; margin-right: 10px; border-radius: 3px; image-rendering: pixelated; } .player-header { font-weight: bold; text-align: left; }</style></head><body><h1>Player Statistics — Forever Reeds</h1><div class='update-time'>Last updated: $currentDateTime</div><table>");
 
-# Přesné spárování UUID podle vašeho serveru
+# Exact UUID mapping for your server
 $jmena = @{
     '10d807ae-f713-4d9d-966d-a6e7b4bddafd' = 'dufe_com';
     '4b91ee4a-88d0-48f0-b111-8f8e6e3647b7' = 'KarlTheBroken';
@@ -21,13 +21,16 @@ $jmena = @{
 
 $hraciData = @()
 
-# Globální součty serveru
+# Global server totals
 $totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalTalked = 0;
 $totalDamageDealt = 0; $totalDamageTaken = 0; $totalDiamonds = 0; $totalDebris = 0; $totalJumps = 0;
-$totalDragonKills = 0; $totalCrafted = 0; $totalBred = 0;
+$totalDragonKills = 0; $totalWitherKills = 0; $totalCrafted = 0; $totalBred = 0;
 
 Get-ChildItem 'stats/*.json' | ForEach-Object {
     $uuid = $_.BaseName;
+    # Clean dashes out of UUID for Crafatar API compatibility
+    $cleanUUID = $uuid.Replace("-", "");
+    
     $nickname = if ($jmena.Contains($uuid)) { $jmena[$uuid] } else { $uuid };
     $json = Get-Content $_.FullName -Raw | ConvertFrom-Json;
     $custom = $json.stats.'minecraft:custom';
@@ -35,20 +38,21 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     $killed = $json.stats.'minecraft:killed';
     $crafted = $json.stats.'minecraft:crafted';
     
-    # Základní časy a úmrtí
+    # Core play time & deaths
     $ticks = 0; if ($custom.'minecraft:play_time') { $ticks = $custom.'minecraft:play_time' } elseif ($custom.'minecraft:play_one_minute') { $ticks = $custom.'minecraft:play_one_minute' };
     $hours = [Math]::Round($ticks / 20 / 60 / 60, 1);
     $deaths = if ($custom.'minecraft:deaths') { $custom.'minecraft:deaths' } else { 0 };
     $sinceDeathTicks = if ($custom.'minecraft:time_since_death') { $custom.'minecraft:time_since_death' } else { 0 };
     $sinceDeathHours = [Math]::Round($sinceDeathTicks / 20 / 60 / 60, 1);
     
-    # Damage a boj
+    # Combat
     $damageDealt = if ($custom.'minecraft:damage_dealt') { [Math]::Round($custom.'minecraft:damage_dealt' / 10, 0) } else { 0 };
     $damageTaken = if ($custom.'minecraft:damage_taken') { [Math]::Round($custom.'minecraft:damage_taken' / 10, 0) } else { 0 };
     $mobKills = if ($custom.'minecraft:mob_kills') { $custom.'minecraft:mob_kills' } else { 0 };
     $dragonKills = if ($killed.'minecraft:ender_dragon') { $killed.'minecraft:ender_dragon' } else { 0 };
+    $witherKills = if ($killed.'minecraft:wither') { $killed.'minecraft:wither' } else { 0 };
     
-    # Blokování, pohyb, crafting, zvířata a chat
+    # Interaction, crafting & movement
     $talked = if ($custom.'minecraft:talked_to_villager') { $custom.'minecraft:talked_to_villager' } else { 0 };
     $traded = if ($custom.'minecraft:traded_with_villager') { $custom.'minecraft:traded_with_villager' } else { 0 };
     $jumps = if ($custom.'minecraft:jump') { $custom.'minecraft:jump' } else { 0 };
@@ -60,23 +64,23 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     $sprint = if ($custom.'minecraft:sprint_one_cm') { $custom.'minecraft:sprint_one_cm' } else { 0 };
     $distanceKm = [Math]::Round(($walk + $sprint) / 100 / 1000, 1);
     
-    # Těžba a stavění
+    # Mining & building
     $blocksMined = 0; if ($mined) { foreach ($p in $mined.psobject.Properties) { $blocksMined += $p.Value } };
     $blocksPlaced = 0; if ($json.stats.'minecraft:used') { foreach ($p in $json.stats.'minecraft:used'.psobject.Properties) { if ($p.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { $blocksPlaced += $p.Value } } };
     
-    # Specifické rudy
+    # Specific ores
     $diamondOre = if ($mined.'minecraft:diamond_ore') { $mined.'minecraft:diamond_ore' } else { 0 };
     $deepslateDiamondOre = if ($mined.'minecraft:deepslate_diamond_ore') { $mined.'minecraft:deepslate_diamond_ore' } else { 0 };
     $totalPlayerDiamonds = $diamondOre + $deepslateDiamondOre;
     $ancientDebris = if ($mined.'minecraft:ancient_debris') { $mined.'minecraft:ancient_debris' } else { 0 };
     
-    # Sčítání globálních hodnot serveru
+    # Calculate server totals
     $totalHours += $hours; $totalDeaths += $deaths; $totalMobKills += $mobKills; $totalMined += $blocksMined; $totalPlaced += $blocksPlaced; $totalTraded += $traded; $totalDistance += $distanceKm; $totalTalked += $talked;
     $totalDamageDealt += $damageDealt; $totalDamageTaken += $damageTaken; $totalDiamonds += $totalPlayerDiamonds; $totalDebris += $ancientDebris; $totalJumps += $jumps;
-    $totalDragonKills += $dragonKills; $totalCrafted += $totalPlayerCrafted; $totalBred += $animalsBred;
+    $totalDragonKills += $dragonKills; $totalWitherKills += $witherKills; $totalCrafted += $totalPlayerCrafted; $totalBred += $animalsBred;
 
     $hraciData += [PSCustomObject]@{
-        UUID            = $uuid
+        CleanUUID       = $cleanUUID
         Nickname        = $nickname
         Hours           = $hours
         Deaths          = $deaths
@@ -85,6 +89,7 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
         DamageTaken     = $damageTaken
         MobKills        = $mobKills
         DragonKills     = $dragonKills
+        WitherKills     = $witherKills
         BlocksMined     = $blocksMined
         BlocksPlaced    = $blocksPlaced
         Diamonds        = $totalPlayerDiamonds
@@ -98,22 +103,21 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     }
 }
 
-# Seřazení hráčů podle herního času pro pořadí sloupců
+# Sort players by total playtime for column hierarchy
 $serazeniHraci = $hraciData | Sort-Object Hours -Descending
 
-# --- GENEROVÁNÍ HTML ŽÁHLAVÍ ---
-$htmlRow = "<tr><th class='stat-name'>Statistika</th>"
+# --- GENERATE HTML HEADERS WITH FIXED CRAFATAR URL ---
+$htmlRow = "<tr><th class='stat-name'>Statistic</th>"
 $serazeniHraci | ForEach-Object {
-    # Crafatar API vyžaduje UUID zapsané přímo v URL adrese
-    $headUrl = "https://crafatar.com" + $_.UUID + "?size=24&overlay";
+    # Using clean UUID without dashes and fixing /avatars/ path mapping
+    $headUrl = "https://crafatar.com" + $_.CleanUUID + "?size=24&overlay";
     $htmlRow += "<th class='player-header'><img class='player-head' src='$headUrl' alt=''>$($_.Nickname)</th>"
 }
-$htmlRow += "<th class='server-total'>CELKEM SERVER</th></tr>"
+$htmlRow += "<th class='server-total'>SERVER TOTAL</th></tr>"
 $html += $htmlRow
 
-# Pomocná funkce s vyhodnocením medailí kompatibilní s Linuxem
+# Dynamic row building helper
 function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", $lowerWins = $false) {
-    # Řazení hodnot pro určení medailí (kompatibilní s Linux rozhraním)
     $values = if ($lowerWins) {
         $serazeniHraci | Select-Object -ExpandProperty $property | Sort-Object
     } else {
@@ -127,9 +131,8 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
     $row = "<tr><td class='stat-name'>$label</td>"
     foreach ($hrac in $serazeniHraci) {
         $val = $hrac.$property
-        $formattedVal = if ($val -is [ValueType]) { $val.ToString("N0", $czCulture) } else { $val.ToString() }
+        $formattedVal = if ($val -is [ValueType]) { $val.ToString("N0", $usCulture) } else { $val.ToString() }
         
-        # Logika medailí
         $medal = ""
         if ($val -ne 0 -or (-not $lowerWins -and $property -ne "Deaths")) {
             if ($val -eq $top1) { $medal = " 👑" }
@@ -140,30 +143,31 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
         $row += "<td>$formattedVal $formatSuffix$medal</td>"
     }
     
-    $formattedServerVal = if ($serverValue -is [ValueType]) { $serverValue.ToString("N0", $czCulture) } else { $serverValue }
+    $formattedServerVal = if ($serverValue -is [ValueType]) { $serverValue.ToString("N0", $usCulture) } else { $serverValue }
     $finalServerVal = if ($serverValue -ne "") { $formattedServerVal } else { "—" }
     
     $row += "<td class='server-total'>$finalServerVal $formatSuffix</td></tr>"
     return $row
 }
 
-# Přidávání jednotlivých řádků statistik pod sebe
-$html += Add-StatRow "Odehraný čas" "Hours" "hod." $totalHours
-$html += Add-StatRow "Úmrtí" "Deaths" "" $totalDeaths -lowerWins $true
-$html += Add-StatRow "Čas od poslední smrti" "SinceDeathHours" "hod." ""
-$html += Add-StatRow "Rozdané zranění (HP)" "DamageDealt" "" $totalDamageDealt
-$html += Add-StatRow "Obdržené zranění (HP)" "DamageTaken" "" $totalDamageTaken
-$html += Add-StatRow "Zabitá monstra" "MobKills" "" $totalMobKills
-$html += Add-StatRow "Zabití ender draka" "DragonKills" "ks" $totalDragonKills
-$html += Add-StatRow "Vytěženo bloků" "BlocksMined" "" $totalMined
-$html += Add-StatRow "Položeno bloků" "BlocksPlaced" "" $totalPlaced
-$html += Add-StatRow "Vytěženo diamantové rudy" "Diamonds" "ks" $totalDiamonds
-$html += Add-StatRow "Vytěženo Ancient Debris" "Debris" "ks" $totalDebris
-$html += Add-StatRow "Nachozeno km" "Distance" "km" $totalDistance
-$html += Add-StatRow "Počet skoků" "Jumps" "" $totalJumps
-$html += Add-StatRow "Počet vyrobených věcí" "Crafted" "ks" $totalCrafted
-$html += Add-StatRow "Obchody s villagery" "Traded" "" $totalTraded
-$html += Add-StatRow "Rozmnožená zvířata" "Bred" "ks" $totalBred
-$html += Add-StatRow "Zprávy v chatu" "Talked" "" $totalTalked
+# Append statistics row mapping exactly to requested metric layouts
+$html += Add-StatRow "Time Played" "Hours" "hrs" $totalHours
+$html += Add-StatRow "Deaths" "Deaths" "" $totalDeaths -lowerWins $true
+$html += Add-StatRow "Time Since Last Death" "SinceDeathHours" "hrs" ""
+$html += Add-StatRow "Damage Dealt (HP)" "DamageDealt" "" $totalDamageDealt
+$html += Add-StatRow "Damage Taken (HP)" "DamageTaken" "" $totalDamageTaken
+$html += Add-StatRow "Mob Kills" "MobKills" "" $totalMobKills
+$html += Add-StatRow "Ender Dragon Kills" "DragonKills" "pc" $totalDragonKills
+$html += Add-StatRow "Wither Kills" "WitherKills" "pc" $totalWitherKills
+$html += Add-StatRow "Blocks Mined" "BlocksMined" "" $totalMined
+$html += Add-StatRow "Blocks Placed" "BlocksPlaced" "" $totalPlaced
+$html += Add-StatRow "Diamond Ore Mined" "Diamonds" "pcs" $totalDiamonds
+$html += Add-StatRow "Ancient Debris Mined" "Debris" "pcs" $totalDebris
+$html += Add-StatRow "Distance Traveled" "Distance" "km" $totalDistance
+$html += Add-StatRow "Jump Count" "Jumps" "" $totalJumps
+$html += Add-StatRow "Times Crafted" "Crafted" "pcs" $totalCrafted
+$html += Add-StatRow "Trades with Villagers" "Traded" "" $totalTraded
+$html += Add-StatRow "Animals Bred" "Bred" "pcs" $totalBred
+$html += Add-StatRow "Chat Messages" "Talked" "" $totalTalked
 $html += ""
 $html | Out-File -FilePath 'index.html' -Encoding utf8
