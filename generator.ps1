@@ -101,10 +101,10 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
 # Seřazení hráčů podle herního času pro pořadí sloupců
 $serazeniHraci = $hraciData | Sort-Object Hours -Descending
 
-# --- GENEROVÁNÍ HTML ŽÁHLAVÍ S FUNKČNÍM URL PRO HLAVY ---
+# --- GENEROVÁNÍ HTML ŽÁHLAVÍ ---
 $htmlRow = "<tr><th class='stat-name'>Statistika</th>"
 $serazeniHraci | ForEach-Object {
-    # Crafatar vyžaduje /avatars/ s lomítkem na obou stranách
+    # Crafatar API vyžaduje UUID zapsané přímo v URL adrese
     $headUrl = "https://crafatar.com" + $_.UUID + "?size=24&overlay";
     $htmlRow += "<th class='player-header'><img class='player-head' src='$headUrl' alt=''>$($_.Nickname)</th>"
 }
@@ -113,7 +113,7 @@ $html += $htmlRow
 
 # Pomocná funkce s vyhodnocením medailí kompatibilní s Linuxem
 function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", $lowerWins = $false) {
-    # Oprava řazení pro Linux (PWSH nepodporuje -Ascending)
+    # Řazení hodnot pro určení medailí (kompatibilní s Linux rozhraním)
     $values = if ($lowerWins) {
         $serazeniHraci | Select-Object -ExpandProperty $property | Sort-Object
     } else {
@@ -149,7 +149,7 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
 
 # Přidávání jednotlivých řádků statistik pod sebe
 $html += Add-StatRow "Odehraný čas" "Hours" "hod." $totalHours
-$html += Add-StatRow "Úmrtí" "Deaths" "" $totalDeaths -lowerWins $true # Méně je lépe
+$html += Add-StatRow "Úmrtí" "Deaths" "" $totalDeaths -lowerWins $true
 $html += Add-StatRow "Čas od poslední smrti" "SinceDeathHours" "hod." ""
 $html += Add-StatRow "Rozdané zranění (HP)" "DamageDealt" "" $totalDamageDealt
 $html += Add-StatRow "Obdržené zranění (HP)" "DamageTaken" "" $totalDamageTaken
@@ -160,3 +160,10 @@ $html += Add-StatRow "Položeno bloků" "BlocksPlaced" "" $totalPlaced
 $html += Add-StatRow "Vytěženo diamantové rudy" "Diamonds" "ks" $totalDiamonds
 $html += Add-StatRow "Vytěženo Ancient Debris" "Debris" "ks" $totalDebris
 $html += Add-StatRow "Nachozeno km" "Distance" "km" $totalDistance
+$html += Add-StatRow "Počet skoků" "Jumps" "" $totalJumps
+$html += Add-StatRow "Počet vyrobených věcí" "Crafted" "ks" $totalCrafted
+$html += Add-StatRow "Obchody s villagery" "Traded" "" $totalTraded
+$html += Add-StatRow "Rozmnožená zvířata" "Bred" "ks" $totalBred
+$html += Add-StatRow "Zprávy v chatu" "Talked" "" $totalTalked
+$html += ""
+$html | Out-File -FilePath 'index.html' -Encoding utf8
