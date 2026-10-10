@@ -1,31 +1,37 @@
-name: Aktualizace Minecraft Statistik
+name: Minecraft Stats Auto Updater
 
 on:
   schedule:
-    # Spouští se každou hodinu (vždy v 0. minutu)
     - cron: '0 * * * *'
-  workflow_dispatch: # Umožní vám spustit aktualizaci ručně kliknutím na tlačítko
+  workflow_dispatch:
 
 permissions:
-  contents: write # Nutné povolení, aby mohl skript nahrát vygenerovaný web do gh-pages větve
+  contents: write # Povolí GitHubu ukládat změny do gh-pages větve
 
 jobs:
   build-and-deploy:
-    runs-on: windows-latest # Použijeme Windows, aby bez problému běžel PowerShell
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Načtení kódu z GitHubu
-        uses: actions/checkout@v4
+    - name: Checkout repozitáře
+      uses: actions/checkout@v4
 
-      - name: Spuštění generátoru statistik
-        run: |
-          ./generator.ps1
+    - name: Příprava složky pro statistiky
+      run: mkdir -p stats
 
-      - name: Nasazení na GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          # Zde definujete, co se má vystavit na web. 
-          # Pokud skript mění přímo index.html v kořenu repozitáře, necháváme '.' (aktuální složku)
-          publish_dir: . 
-          # Tento krok automaticky vytvoří skrytou větev 'gh-pages', kam uloží čistý web
-          publish_branch: gh-pages 
+    - name: Stažení statistik z Hostify FTP
+      run: |
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/players/stats/*.json" --no-directories --accept="*.json" -P "stats" -q
+
+    - name: Spuštění kompilace do HTML
+      shell: pwsh
+      run: |
+        ./generator.ps1
+
+    # --- TATO ČÁST NAHRADILA GIT COMMIT/PUSH ---
+    - name: Nasazení na GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: . # Vystaví obsah aktuální složky (včetně nového index.html)
+        publish_branch: gh-pages # Vše se odešle do čisté, izolované větve
