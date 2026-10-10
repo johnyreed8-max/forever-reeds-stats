@@ -106,7 +106,13 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
 # Sort players by total playtime for column hierarchy
 $serazeniHraci = $hraciData | Sort-Object Hours -Descending
 
-# --- GENERATE HTML HEADERS WITH FIXED CRAFATAR URL PATH ---
+# --- GENERATE HTML HEADERS (NAMES ONLY) ---
+$htmlRow = "<tr><th class='stat-name'>Statistic</th>"
+$serazeniHraci | ForEach-Object {
+    $htmlRow += "<th class='player-header'>$($_.Nickname)</th>"
+}
+$htmlRow += "<th class='server-total'>SERVER TOTAL</th></tr>"
+$html += $htmlRow
 
 # Dynamic row building helper
 function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", $lowerWins = $false) {
