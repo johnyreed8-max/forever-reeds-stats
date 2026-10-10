@@ -82,13 +82,13 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     }
 }
 
-# Seřazení hráčů podle odehraného času horizontalně pro záhlaví
+# Seřazení hráčů podle odehraného času horizontálně pro záhlaví
 $serazeniHraci = $hraciData | Sort-Object Hours -Descending
 $nejvicHodinHrac = $serazeniHraci[0].Nickname
 
 # --- GENEROVÁNÍ HTML ŘÁDKŮ (VERTIKÁLNÍ STRUKTURA) ---
 
-# 1. Řádek: Záhlaví s přezdívkami a 2D hlavami
+# 1. Řádek: Záhlaví s přezdívkami a 2D hlavami (ZDE OPRAVENA URL ADRESA)
 $htmlRow = "<tr><th class='stat-name'>Statistika</th>"
 $serazeniHraci | ForEach-Object {
     $crown = if ($_.Nickname -eq $nejvicHodinHrac) { " 👑" } else { "" };
