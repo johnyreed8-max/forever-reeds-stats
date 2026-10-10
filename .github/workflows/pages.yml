@@ -1,0 +1,31 @@
+name: Aktualizace Minecraft Statistik
+
+on:
+  schedule:
+    # Spouští se každou hodinu (vždy v 0. minutu)
+    - cron: '0 * * * *'
+  workflow_dispatch: # Umožní vám spustit aktualizaci ručně kliknutím na tlačítko
+
+permissions:
+  contents: write # Nutné povolení, aby mohl skript nahrát vygenerovaný web do gh-pages větve
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest # Použijeme Windows, aby bez problému běžel PowerShell
+    steps:
+      - name: Načtení kódu z GitHubu
+        uses: actions/checkout@v4
+
+      - name: Spuštění generátoru statistik
+        run: |
+          ./generator.ps1
+
+      - name: Nasazení na GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Zde definujete, co se má vystavit na web. 
+          # Pokud skript mění přímo index.html v kořenu repozitáře, necháváme '.' (aktuální složku)
+          publish_dir: . 
+          # Tento krok automaticky vytvoří skrytou větev 'gh-pages', kam uloží čistý web
+          publish_branch: gh-pages 
