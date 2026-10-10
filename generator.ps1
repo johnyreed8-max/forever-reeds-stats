@@ -101,21 +101,21 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
 # Seřazení hráčů podle herního času pro pořadí sloupců
 $serazeniHraci = $hraciData | Sort-Object Hours -Descending
 
-# --- GENEROVÁNÍ HTML ŽÁHLAVÍ S NOVÝM STABILNÍM API PRO HLAVY ---
+# --- GENEROVÁNÍ HTML ŽÁHLAVÍ S FUNKČNÍM URL PRO HLAVY ---
 $htmlRow = "<tr><th class='stat-name'>Statistika</th>"
 $serazeniHraci | ForEach-Object {
-    # Crafatar API je 100% stabilní a vyžaduje UUID hráče
+    # Crafatar vyžaduje /avatars/ s lomítkem na obou stranách
     $headUrl = "https://crafatar.com" + $_.UUID + "?size=24&overlay";
     $htmlRow += "<th class='player-header'><img class='player-head' src='$headUrl' alt=''>$($_.Nickname)</th>"
 }
 $htmlRow += "<th class='server-total'>CELKEM SERVER</th></tr>"
 $html += $htmlRow
 
-# Pomocná funkce s vyhodnocením 1., 2. a 3. místa (Zlato, Stříbro, Bronz)
+# Pomocná funkce s vyhodnocením medailí kompatibilní s Linuxem
 function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", $lowerWins = $false) {
-    # Seřazení hodnot pro určení medailí
+    # Oprava řazení pro Linux (PWSH nepodporuje -Ascending)
     $values = if ($lowerWins) {
-        $serazeniHraci | Select-Object -ExpandProperty $property | Sort-Object -Ascending
+        $serazeniHraci | Select-Object -ExpandProperty $property | Sort-Object
     } else {
         $serazeniHraci | Select-Object -ExpandProperty $property | Sort-Object -Descending
     }
@@ -129,9 +129,8 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
         $val = $hrac.$property
         $formattedVal = if ($val -is [ValueType]) { $val.ToString("N0", $czCulture) } else { $val.ToString() }
         
-        # Logika přidělování medailí
+        # Logika medailí
         $medal = ""
-        # Výjimka: Pokud je hodnota 0, medaile se nedávají (např. 0 zabitých draků nebo 0 úmrtí u trestné statistiky)
         if ($val -ne 0 -or (-not $lowerWins -and $property -ne "Deaths")) {
             if ($val -eq $top1) { $medal = " 👑" }
             elseif ($val -eq $top2 -and $top2 -ne $top1) { $medal = " 🥈" }
@@ -148,7 +147,7 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
     return $row
 }
 
-# Přidávání jednotlivých řádků statistik přesně podle vašeho seznamu
+# Přidávání jednotlivých řádků statistik pod sebe
 $html += Add-StatRow "Odehraný čas" "Hours" "hod." $totalHours
 $html += Add-StatRow "Úmrtí" "Deaths" "" $totalDeaths -lowerWins $true # Méně je lépe
 $html += Add-StatRow "Čas od poslední smrti" "SinceDeathHours" "hod." ""
@@ -159,3 +158,5 @@ $html += Add-StatRow "Zabití ender draka" "DragonKills" "ks" $totalDragonKills
 $html += Add-StatRow "Vytěženo bloků" "BlocksMined" "" $totalMined
 $html += Add-StatRow "Položeno bloků" "BlocksPlaced" "" $totalPlaced
 $html += Add-StatRow "Vytěženo diamantové rudy" "Diamonds" "ks" $totalDiamonds
+$html += Add-StatRow "Vytěženo Ancient Debris" "Debris" "ks" $totalDebris
+$html += Add-StatRow "Nachozeno km" "Distance" "km" $totalDistance
