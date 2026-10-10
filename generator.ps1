@@ -121,10 +121,13 @@ $serazeniHraci | ForEach-Object {
 $htmlRow += "<th class='server-total'>SERVER TOTAL</th></tr>"
 $html += $htmlRow
 
-# Dynamic row building helper
-function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", $lowerWins = $false) {
+# Dynamic row building helper (FIXED: Supports sorting by raw numbers while displaying text strings)
+function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", $lowerWins = $false, $sortProperty = "") {
+    # If sortProperty is not specified, evaluate medals using the display property
+    $evalProperty = if ($sortProperty -ne "") { $sortProperty } else { $property }
+
     $values = if ($lowerWins) {
-        $serazeniHraci | Select-Object -ExpandProperty $property | Sort-Object
+        $serazeniHraci | Select-Object -ExpandProperty $evalProperty | Sort-Object
     } else {
         $serazeniHraci | Select-Object -ExpandProperty $property | Sort-Object -Descending
     }
@@ -136,24 +139,28 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
     $row = "<tr><td class='stat-name'>$label</td>"
     foreach ($hrac in $serazeniHraci) {
         $val = $hrac.$property
+        $evalVal = $hrac.$evalProperty
+        
+        # Format only if it's a raw numeric value, otherwise keep string format intact
         $formattedVal = if ($val -is [ValueType]) { $val.ToString("N0", $usCulture) } else { $val.ToString() }
         
         $medal = ""
-        if ($val -ne 0 -or (-not $lowerWins -and $property -ne "Deaths")) {
-            if ($val -eq $top1) { $medal = " 👑" }
-            elseif ($val -eq $top2 -and $top2 -ne $top1) { $medal = " 🥈" }
-            elseif ($val -eq $top3 -and $top3 -ne $top2 -and $top3 -ne $top1) { $medal = " 🥉" }
+        if ($evalVal -ne 0 -or (-not $lowerWins -and $evalProperty -ne "Deaths")) {
+            if ($evalVal -eq $top1) { $medal = " 👑" }
+            elseif ($evalVal -eq $top2 -and $top2 -ne $top1) { $medal = " 🥈" }
+            elseif ($evalVal -eq $top3 -and $top3 -ne $top2 -and $top3 -ne $top1) { $medal = " 🥉" }
         }
         
-        $row += "<td>$formattedVal $formatSuffix$medal</td>"
+        $row += "<td>$formattedVal$formatSuffix$medal</td>"
     }
     
     $formattedServerVal = if ($serverValue -is [ValueType]) { $serverValue.ToString("N0", $usCulture) } else { $serverValue }
     $finalServerVal = if ($serverValue -ne "") { $formattedServerVal } else { "—" }
     
-    $row += "<td class='server-total'>$finalServerVal $formatSuffix</td></tr>"
+    $row += "<td class='server-total'>$finalServerVal$formatSuffix</td></tr>"
     return $row
 }
+
 
 # Append statistics rows
 $html += Add-StatRow "Time Played" "TimePlayedText" "" $totalHours
