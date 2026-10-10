@@ -5,8 +5,15 @@ on:
     - cron: '0 * * * *'
   workflow_dispatch:
 
+# Nastavení oprávnění pro bezpečné nasazení na GitHub Pages bez commitů
 permissions:
-  contents: write # Povolí GitHubu ukládat změny do gh-pages větve
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -28,10 +35,17 @@ jobs:
       run: |
         ./generator.ps1
 
-    # --- TATO ČÁST NAHRADILA GIT COMMIT/PUSH ---
-    - name: Nasazení na GitHub Pages
-      uses: peaceiris/actions-gh-pages@v4
+    # Zde nakonfigurujeme GitHub Pages
+    - name: Nastavení GitHub Pages prostředí
+      uses: actions/configure-pages@v5
+
+    # Zabalí vygenerovaný soubor index.html k nahrání
+    - name: Nahrání vygenerovaného webu jako artefakt
+      uses: actions/upload-pages-artifact@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: . # Vystaví obsah aktuální složky (včetně nového index.html)
-        publish_branch: gh-pages # Vše se odešle do čisté, izolované větve
+        path: '.' # Nahrává aktuální složku, kde se nachází nový index.html
+
+    # Provede okamžité publikování na web bez vytváření zbytečných commitů
+    - name: Nasazení na GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
