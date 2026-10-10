@@ -41,6 +41,11 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     # Core play time & deaths
     $ticks = 0; if ($custom.'minecraft:play_time') { $ticks = $custom.'minecraft:play_time' } elseif ($custom.'minecraft:play_one_minute') { $ticks = $custom.'minecraft:play_one_minute' };
     $hours = [Math]::Round($ticks / 20 / 60 / 60, 1);
+    
+    # NOVÉ: Výpočet dnů zaokrouhlený na 1 desetinné místo a vytvoření textového formátu
+    $days = [Math]::Round($hours / 24, 1);
+    $timePlayedText = "$hours hrs / $days days";
+
     $deaths = if ($custom.'minecraft:deaths') { $custom.'minecraft:deaths' } else { 0 };
     $sinceDeathTicks = if ($custom.'minecraft:time_since_death') { $custom.'minecraft:time_since_death' } else { 0 };
     $sinceDeathHours = [Math]::Round($sinceDeathTicks / 20 / 60 / 60, 1);
@@ -80,10 +85,12 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     $totalDragonKills += $dragonKills; $totalWitherKills += $witherKills; $totalCrafted += $totalPlayerCrafted; $totalBred += $animalsBred;
 
     $hraciData += [PSCustomObject]@{
-        CleanUUID       = $cleanUUID
         Nickname        = $nickname
-        Hours           = $hours
+        Hours           = $hours # Ponecháme kvůli správnému řazení sloupců a medailí
+        TimePlayedText  = $timePlayedText # NOVÉ: Text, který se zobrazí v tabulce
         Deaths          = $deaths
+        # ... zbytek stávajícího objektu zůstává stejný ...
+
         SinceDeathHours = $sinceDeathHours
         DamageDealt     = $damageDealt
         DamageTaken     = $damageTaken
@@ -149,7 +156,8 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
 }
 
 # Append statistics rows
-$html += Add-StatRow "Time Played" "Hours" "hrs" $totalHours
+$html += Add-StatRow "Time Played" "TimePlayedText" "" $totalHours
+
 $html += Add-StatRow "Deaths" "Deaths" "" $totalDeaths -lowerWins $true
 $html += Add-StatRow "Time Since Last Death" "SinceDeathHours" "hrs" ""
 $html += Add-StatRow "Damage Dealt (HP)" "DamageDealt" "" $totalDamageDealt
