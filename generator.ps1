@@ -107,16 +107,6 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
 $serazeniHraci = $hraciData | Sort-Object Hours -Descending
 
 # --- GENERATE HTML HEADERS WITH FIXED CRAFATAR URL PATH ---
-$htmlRow = "<tr><th class='stat-name'>Statistic</th>"
-$serazeniHraci | ForEach-Object {
-    # FIXED: Added missing slash before avatars
-    $headUrl = "https://crafatar.com" + $_.CleanUUID + "?size=24&overlay";
-    # Backup URL if Crafatar fails (Minotar fallback)
-    $fallbackUrl = "https://minotar.net" + $_.Nickname + "/24.png";
-    $htmlRow += "<th class='player-header'><img class='player-head' src='$headUrl' onerror=""this.onerror=null; this.src='$fallbackUrl';"" alt=''>$($_.Nickname)</th>"
-}
-$htmlRow += "<th class='server-total'>SERVER TOTAL</th></tr>"
-$html += $htmlRow
 
 # Dynamic row building helper
 function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", $lowerWins = $false) {
@@ -159,17 +149,17 @@ $html += Add-StatRow "Time Since Last Death" "SinceDeathHours" "hrs" ""
 $html += Add-StatRow "Damage Dealt (HP)" "DamageDealt" "" $totalDamageDealt
 $html += Add-StatRow "Damage Taken (HP)" "DamageTaken" "" $totalDamageTaken
 $html += Add-StatRow "Mob Kills" "MobKills" "" $totalMobKills
-$html += Add-StatRow "Ender Dragon Kills" "DragonKills" "pcs" $totalDragonKills
-$html += Add-StatRow "Wither Kills" "WitherKills" "pcs" $totalWitherKills
+$html += Add-StatRow "Ender Dragon Kills" "DragonKills" "" $totalDragonKills
+$html += Add-StatRow "Wither Kills" "WitherKills" "" $totalWitherKills
 $html += Add-StatRow "Blocks Mined" "BlocksMined" "" $totalMined
 $html += Add-StatRow "Blocks Placed" "BlocksPlaced" "" $totalPlaced
-$html += Add-StatRow "Diamond Ore Mined" "Diamonds" "pcs" $totalDiamonds
-$html += Add-StatRow "Ancient Debris Mined" "Debris" "pcs" $totalDebris
+$html += Add-StatRow "Diamond Ore Mined" "Diamonds" "" $totalDiamonds
+$html += Add-StatRow "Ancient Debris Mined" "Debris" "" $totalDebris
 $html += Add-StatRow "Distance Traveled" "Distance" "km" $totalDistance
 $html += Add-StatRow "Jump Count" "Jumps" "" $totalJumps
-$html += Add-StatRow "Times Crafted" "Crafted" "pcs" $totalCrafted
+$html += Add-StatRow "Times Crafted" "Crafted" "" $totalCrafted
 $html += Add-StatRow "Trades with Villagers" "Traded" "" $totalTraded
-$html += Add-StatRow "Animals Bred" "Bred" "pcs" $totalBred
+$html += Add-StatRow "Animals Bred" "Bred" "" $totalBred
 $html += Add-StatRow "Chat Messages" "Talked" "" $totalTalked
 $html += ""
 $html | Out-File -FilePath 'index.html' -Encoding utf8
