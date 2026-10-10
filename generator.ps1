@@ -1,7 +1,10 @@
+# Pojistka: Pokud složka stats neexistuje, skript ji sám vytvoří
+if (-not (Test-Path "stats")) { New-Item -ItemType Directory -Path "stats" }
+
 # Zajištění správného českého času (UTC + 2 hodiny posun pro střední Evropu)
 $aktualniCas = (Get-Date).ToUniversalTime().AddHours(2).ToString("dd.MM.yyyy HH:mm:ss");
 
-$html = @("<!DOCTYPE html><html lang='cs'><head><meta charset='UTF-8'><title>Minecraft Statistiky</title><style>body { font-family: sans-serif; background: #1e1e1e; color: #fff; padding: 40px; } h1 { color: #5cff5c; margin-bottom: 5px; } .update-time { color: #aaa; font-size: 0.9em; margin-bottom: 25px; border-bottom: 2px solid #444; padding-bottom: 15px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #444; padding: 12px; text-align: left; vertical-align: middle; } th { background: #2e2e2e; color: #5cff5c; } tr:nth-child(even) { background: #252525; } tr:hover { background: #333; }</style></head><body><h1>Statistiky hráčů — Forever Reeds</h1><div class='update-time'>Poslední aktualizace: $aktualniCas</div><table><tr><th>Hráč (Nick)</th><th>Odehraný čas</th><th>Úmrtí</th><th>Čas od posl. smrti</th><th>Zabitá monstra</th><th>Vytěženo bloků</th><th>Položeno bloků</th><th>Obchody s villagery</th><th>Nachozeno km</th><th>Zprávy v chatu</th></tr>");
+$html = @("<!DOCTYPE html><html lang='cs'><head><meta charset='UTF-8'><title>Minecraft Statistiky</title><style>body { font-family: sans-serif; background: #1e1e1e; color: #fff; padding: 40px; } h1 { color: #5cff5c; margin-bottom: 5px; } .update-time { color: #aaa; font-size: 0.9em; margin-bottom: 25px; border-bottom: 2px solid #444; padding-bottom: 15px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #444; padding: 12px; text-align: left; vertical-align: middle; } th { background: #2e2e2e; color: #5cff5c; } tr:nth-child(even) { background: #252525; } tr:hover { background: #333; } .server-total { background: #2e2e2e !important; font-weight: bold; color: #5cff5c; } .player-head { width: 24px; height: 24px; vertical-align: middle; margin-right: 10px; border-radius: 3px; image-rendering: pixelated; }</style></head><body><h1>Statistiky hráčů — Forever Reeds</h1><div class='update-time'>Poslední aktualizace: $aktualniCas</div><table><tr><th>Hráč (Nick)</th><th>Odehraný čas</th><th>Úmrtí</th><th>Čas od posl. smrti</th><th>Zabitá monstra</th><th>Vytěženo bloků</th><th>Položeno bloků</th><th>Obchody s villagery</th><th>Nachozeno km</th><th>Zprávy v chatu</th></tr>");
 
 # Přesné spárování UUID podle vašeho serveru
 $jmena = @{
@@ -14,6 +17,9 @@ $jmena = @{
 };
 
 $hraciData = @()
+
+# Proměnné pro celkové statistiky serveru
+$totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalTalked = 0;
 
 Get-ChildItem 'stats/*.json' | ForEach-Object {
     $uuid = $_.BaseName;
@@ -37,6 +43,9 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     $blocksMined = 0; if ($mined) { foreach ($p in $mined.psobject.Properties) { $blocksMined += $p.Value } };
     $blocksPlaced = 0; if ($json.stats.'minecraft:used') { foreach ($p in $json.stats.'minecraft:used'.psobject.Properties) { if ($p.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { $blocksPlaced += $p.Value } } };
     
+    # Sčítání dat do celkových statistik serveru
+    $totalHours += $hours; $totalDeaths += $deaths; $totalMobKills += $mobKills; $totalMined += $blocksMined; $totalPlaced += $blocksPlaced; $totalTraded += $traded; $totalDistance += $distanceKm; $totalTalked += $talked;
+
     $hrac = [PSCustomObject]@{
         Nickname = $nickname
         Hours = $hours
@@ -52,10 +61,24 @@ Get-ChildItem 'stats/*.json' | ForEach-Object {
     $hraciData += $hrac
 }
 
-# Čisté vygenerování řádků bez skinů
-$hraciData | Sort-Object Hours -Descending | ForEach-Object {
-    $html += '<tr><td><strong>' + $_.Nickname + '</strong></td><td>' + $_.Hours + ' hod.</td><td>' + $_.Deaths + '</td><td>' + $_.SinceDeath + '</td><td>' + $_.MobKills + '</td><td>' + $_.BlocksMined + '</td><td>' + $_.BlocksPlaced + '</td><td>' + $_.Traded + '</td><td>' + $_.Distance + ' km</td><td>' + $_.Talked + '</td></tr>';
+# Seřazení hráčů podle odehraného času
+$serazeniHraci = $hraciData | Sort-Object Hours -Descending
+
+# Zjištění, kdo má nejvíc hodin (pro korunku)
+$nejvicHodinHrac = $serazeniHraci[0].Nickname
+
+# Vygenerování řádků tabulky s 2D hlavami z Minotaru
+$serazeniHraci | ForEach-Object {
+    $crown = if ($_.Nickname -eq $nejvicHodinHrac) { " 👑" } else { "" };
+    
+    # Použijeme Minotar API. Pokud je nick UUID, vezme UUID, jinak nick.
+    $headUrl = "https://minotar.net" + $_.Nickname + "/24.png";
+
+    $html += '<tr><td><img class="player-head" src="' + $headUrl + '" alt="head"><strong>' + $_.Nickname + $crown + '</strong></td><td>' + $_.Hours + ' hod.</td><td>' + $_.Deaths + '</td><td>' + $_.SinceDeath + '</td><td>' + $_.MobKills + '</td><td>' + $_.BlocksMined + '</td><td>' + $_.BlocksPlaced + '</td><td>' + $_.Traded + '</td><td>' + $_.Distance + ' km</td><td>' + $_.Talked + '</td></tr>';
 }
+
+# Přidání závěrečného řádku s celkovými statistikami celého serveru
+$html += '<tr class="server-total"><td>CELKEM SERVER</td><td>' + [Math]::Round($totalHours, 1) + ' hod.</td><td>' + $totalDeaths + '</td><td>—</td><td>' + $totalMobKills + '</td><td>' + $totalMined + '</td><td>' + $totalPlaced + '</td><td>' + $totalTraded + '</td><td>' + [Math]::Round($totalDistance, 1) + ' km</td><td>' + $totalTalked + '</td></tr>';
 
 $html += '</table></body></html>';
 $html | Out-File -FilePath 'index.html' -Encoding utf8
