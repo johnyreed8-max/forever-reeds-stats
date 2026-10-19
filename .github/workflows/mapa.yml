@@ -19,6 +19,7 @@ jobs:
     - name: Vytvoření správné struktury složek
       run: |
         mkdir -p mc_world/dimensions/minecraft/overworld/region
+        mkdir -p mc_world/region
         mkdir -p mapa
 
     - name: Instalace lftp pro spolehlivé stahování
@@ -40,8 +41,11 @@ jobs:
                  cd '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region'; \
                  mirror -c -v -P 4 . ./mc_world/dimensions/minecraft/overworld/region"
 
+        echo "Kopíruji regiony do kořenové složky pro MinedMap..."
+        cp -r ./mc_world/dimensions/minecraft/overworld/region/* ./mc_world/region/
+
         echo "--- Kontrola stažených souborů ---"
-        find ./mc_world/dimensions/minecraft/overworld/region/ -name "*.mca" | wc -l
+        find ./mc_world/region/ -name "*.mca" | wc -l
 
     - name: Generování MinedMap
       run: |
