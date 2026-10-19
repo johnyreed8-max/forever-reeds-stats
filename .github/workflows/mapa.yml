@@ -38,15 +38,19 @@ jobs:
 
     - name: Instalace a spuštění MinedMap (Generování mapy)
       run: |
-        # Stažení nejnovějšího MinedMap z oficiálního repozitáře neocturne/MinedMap
+        # Stažení nejnovějšího MinedMap
         wget -O minedmap.zip https://github.com/neocturne/MinedMap/releases/latest/download/MinedMap-2.8.0-x86_64-unknown-linux-gnu.zip
         
         # Rozbalení ZIP archivu
-        unzip minedmap.zip
+        unzip -q minedmap.zip
+        
+        # Přesun binárky do aktuálního adresáře
+        mv MinedMap-*/minedmap ./minedmap
+        chmod +x ./minedmap
         
         # Vygenerování mapy ze stažených regionů
         ./minedmap mc_world mapa
-
+        
     - name: Nahrání vygenerované mapy na GitHub větev
       run: |
         git config --global user.name "GitHub Action"
