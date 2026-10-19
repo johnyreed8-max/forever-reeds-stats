@@ -31,25 +31,24 @@ jobs:
 
     - name: Stažení regionů a level.dat z Hostify FTP pomocí wget
       run: |
-        EXISTING_FILES=$(find ./mc_world/region/ -name "*.mca" | wc -l)
-        
-        if [ "$EXISTING_FILES" -gt 10 ]; then
-          echo "Nalezeno $EXISTING_FILES regionů v cache. Přeskakuji stahování z FTP!"
-        else
-          echo "Cache je prázdná. Stahuji data z FTP..."
-          
-          wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-               "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
-               -O "./mc_world/level.dat" || true
+        # Smažeme případné staré neúplné soubory v region
+        rm -rf ./mc_world/region/*
 
-          wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-               "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
-               -P "./mc_world/region/" || true
-        fi
+        echo "Stahuji level.dat z FTP..."
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
+             -O "./mc_world/level.dat" || true
 
-        echo "--- Kontrola stavu světa ---"
-        ls -la ./mc_world/
-        echo "Celkový počet .mca souborů pro MinedMap:"
+        echo "Stahuji regiony (overworld) z FTP..."
+        # Zkusíme stáhnout celou složku regionů přes wget rekurzivně (-r)
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+             --recursive --no-parent --no-directories \
+             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/" \
+             -P "./mc_world/region/" || true
+
+        echo "--- Kontrola stažených souborů ---"
+        ls -la ./mc_world/region/
+        echo "Celkový počet stažených .mca souborů:"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
     - name: Instalace a spuštění MinedMap (Generování mapy a strukturování pro viewer)
