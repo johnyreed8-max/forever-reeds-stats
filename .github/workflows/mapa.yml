@@ -30,12 +30,18 @@ jobs:
         restore-keys: |
           mc-regions-
 
-    - name: Stažení regionů z Hostify FTP pomocí wget
+    - name: Stažení regionů a level.dat z Hostify FTP pomocí wget
       run: |
-        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+        # Stažení .mca regionů
+        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
              -P "./mc_world/region/" -q || true
 
+        # Stažení souboru level.dat, který MinedMap vyžaduje
+        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
+             -P "./mc_world/" -q || true
+             
     - name: Instalace a spuštění MinedMap (Generování mapy)
       run: |
         # Stažení nejnovějšího MinedMap
