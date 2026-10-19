@@ -31,22 +31,18 @@ jobs:
 
     - name: Instalace a spuštění MinedMap (Generování mapy)
       run: |
-        # Stažení nejnovějšího MinedMap (příklad odkazu - doplňte správný release z GitHubu, pokud se liší)
-        # Zde předpokládám reálnou URL na .tar.gz balíček MinedMap z GitHub releases
-        MINDEDMAP_URL=$(curl -s https://api.github.com/repos/micropyramid/minedmap/releases/latest | grep browser_download_url | grep linux-x86_64.tar.gz | cut -d '"' -f 4)
+        # Stažení nejnovějšího vydání MinedMap z GitHub Releases (použijeme správný repozitář miurahr/minedmap)
+        wget -O minedmap.tar.gz https://github.com/miurahr/minedmap/releases/latest/download/minedmap-linux-x86_64.tar.gz || \
+        wget -O minedmap.tar.gz https://github.com/miurahr/minedmap/releases/download/v1.17.0/minedmap-linux-x86_64.tar.gz
         
-        # Pokud by GitHub API selhalo, můžete URL zadat natvrdo, např.:
-        # wget https://github.com/miurahr/minedmap/releases/download/vX.Y.Z/minedmap-linux-x86_64.tar.gz
-        
-        # Pro jistotu použijeme stabilní stažení (pokud víte přesnou URL, nahraďte ji):
-        wget -O minedmap.tar.gz "https://github.com/minedmap/minedmap/releases/latest/download/minedmap-linux-x86_64.tar.gz" || \
-        wget -O minedmap.tar.gz "https://github.com/spoutcraft/minedmap/... (případně vaše ověřená URL)"
-        
-        # Rozbalení (předpokládá binárku uvnitř)
+        # Rozbalení archivu
         tar -xzf minedmap.tar.gz
         
-        # Vygenerování mapových dlaždic ze stažených regionů
-        # (Zkontrolujte, jak se jmenuje binární soubor po rozbalení, často jen 'minedmap')
+        # Zjištění názvu složky/binárky po rozbalení a spuštění generování
+        # (MinedMap se obvykle rozbalí do složky nebo vytvoří spustitelný soubor 'minedmap')
+        find . -name "minedmap" -type f
+        
+        # Spuštění generování mapy (pokud je binárka přímo v aktuálním adr. nebo ve složce)
         ./minedmap mc_world mapa
 
     - name: Nahrání vygenerované mapy na GitHub větev
