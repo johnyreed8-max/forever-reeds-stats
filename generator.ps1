@@ -184,4 +184,12 @@ $html += Add-StatRow "Trades with Villagers" "Traded" "" $totalTraded
 $html += Add-StatRow "Animals Bred" "Bred" "" $totalBred
 $html += Add-StatRow "Chat Messages" "Talked" "" $totalTalked
 $html += ""
+# Přidání okna s mapou pod tabulku statistik
+$html += "</table>"
+$html += "<h2 style='color: #5cff5c; margin-top: 40px;'>World Map</h2>"
+$html += "<div style='width: 100%; height: 650px; border: 1px solid #444; border-radius: 8px; overflow: hidden;'>"
+$html += "  <iframe src='mapa/index.html' style='width: 100%; height: 100%; border: none;'></iframe>"
+$html += "</div>"
+$html += "</body></html>"
+
 $html | Out-File -FilePath 'index.html' -Encoding utf8
