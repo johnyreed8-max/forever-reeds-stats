@@ -35,17 +35,21 @@ jobs:
         # Instalace lftp
         sudo apt-get update && sudo apt-get install -y lftp -qq
         
-        # Paralelní stahování .mca souborů (10 vláken naráz)
-        lftp -c "open ftp://${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}@ftp.hostify.cz:21; \
-                 cd /minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/; \
-                 lcd ./mc_world/region/; \
-                 mirror --parallel=10 ./ ./mc_world/region/"
+        # Bezpečné paralelní stahování regionů přes lftp (přihlášení pomocí explicitního příkazu user)
+        lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp://ftp.hostify.cz:21 <<EOF
+        cd /minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/
+        lcd ./mc_world/region/
+        mirror --parallel=10 ./ ./mc_world/region/
+        bye
+        EOF
         
-        # Stažení souboru level.dat, který MinedMap vyžaduje
-        lftp -c "open ftp://${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}@ftp.hostify.cz:21; \
-                 cd /minecraft/Forever%20Reeds/world/; \
-                 lcd ./mc_world/; \
-                 get level.dat" || true
+        # Stažení souboru level.dat
+        lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp://ftp.hostify.cz:21 <<EOF
+        cd /minecraft/Forever%20Reeds/world/
+        lcd ./mc_world/
+        get level.dat
+        bye
+        EOF
 
     - name: Instalace a spuštění MinedMap (Generování mapy)
       run: |
