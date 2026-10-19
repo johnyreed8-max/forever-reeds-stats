@@ -78,6 +78,9 @@ jobs:
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
         
+        # Smaže staré soubory v repozitáři, aby nezůstávaly staré dlaždice
+        git rm -rf mapa/ || true
+        
         git add mapa/
         git commit -m "Automatický update kompletní mapy světa" || echo "Žádné změny"
         git push origin main
