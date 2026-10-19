@@ -34,7 +34,8 @@ jobs:
         echo "Stahuji kompletní regiony přes lftp zrcadlení..."
         lftp -c "open ftp://ftp.hostify.cz:21; \
                  user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
-                 mirror -c /minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region ./mc_world/region"
+                 cd '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region'; \
+                 mirror -c . ./mc_world/region"
 
         echo "--- Kontrola stažených souborů ---"
         find ./mc_world/region/ -name "*.mca" | wc -l
