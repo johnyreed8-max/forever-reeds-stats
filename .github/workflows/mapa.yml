@@ -32,14 +32,17 @@ jobs:
 
     - name: Stažení regionů a level.dat z Hostify FTP pomocí wget
       run: |
-        # Pokud se data nahrála z cache, wget automaticky stáhne jen případné novinky (nebo můžete nechat stáhnout vše)
-        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
-             -P "./mc_world/region/" -q || true
-
+        # Bezpečné stažení level.dat
         wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
-             -P "./mc_world/" -q || true
+             -O "./mc_world/level.dat" -q || true
+
+        # Stažení .mca souborů - wget s explicitním obalem
+        # Stáhneme celou složku regionů rekurzivně
+        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+             --recursive --no-parent --no-directories --accept "*.mca" \
+             -P "./mc_world/region/" \
+             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/" || true
 
     - name: Testovací krok (pouze ověření, že data existují)
       run: |
