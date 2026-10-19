@@ -22,27 +22,29 @@ jobs:
         mkdir -p mc_world/region
         mkdir -p mapa
 
+    - name: Cache pro regiony
+      uses: actions/cache@v4
+      with:
+        path: mc_world/region/
+        key: mc-regions-${{ github.run_id }}
+        restore-keys: |
+          mc-regions-
+
     - name: Stažení regionů z Hostify FTP pomocí wget
       run: |
-        # wget stáhne všechny .mca soubory ze složky region přes FTP
-        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
              -P "./mc_world/region/" -q || true
 
     - name: Instalace a spuštění MinedMap (Generování mapy)
       run: |
-        # Stažení nejnovějšího vydání MinedMap z GitHub Releases (použijeme správný repozitář miurahr/minedmap)
-        wget -O minedmap.tar.gz https://github.com/miurahr/minedmap/releases/latest/download/minedmap-linux-x86_64.tar.gz || \
-        wget -O minedmap.tar.gz https://github.com/miurahr/minedmap/releases/download/v1.17.0/minedmap-linux-x86_64.tar.gz
+        # Stažení nejnovějšího MinedMap z oficiálního repozitáře neocturne/MinedMap
+        wget -O minedmap.zip https://github.com/neocturne/MinedMap/releases/latest/download/MinedMap-2.8.0-x86_64-unknown-linux-gnu.zip
         
-        # Rozbalení archivu
-        tar -xzf minedmap.tar.gz
+        # Rozbalení ZIP archivu
+        unzip minedmap.zip
         
-        # Zjištění názvu složky/binárky po rozbalení a spuštění generování
-        # (MinedMap se obvykle rozbalí do složky nebo vytvoří spustitelný soubor 'minedmap')
-        find . -name "minedmap" -type f
-        
-        # Spuštění generování mapy (pokud je binárka přímo v aktuálním adr. nebo ve složce)
+        # Vygenerování mapy ze stažených regionů
         ./minedmap mc_world mapa
 
     - name: Nahrání vygenerované mapy na GitHub větev
