@@ -25,10 +25,28 @@ jobs:
     - name: Příprava složky pro statistiky
       run: mkdir -p stats
 
-    - name: Stažení statistik z Hostify FTP
+    - name: Stažení komplet světa z Hostify FTP
       run: |
-        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/players/stats/*.json" --no-directories --accept="*.json" -P "stats" -q
+        echo "Stahuji level.dat..."
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
+             -O "./mc_world/level.dat" || true
 
+        echo "Stahuji regiony přes lftp s agresivním modelem..."
+        lftp -c "open ftp://ftp.hostify.cz:21; \
+                 user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
+                 set net:timeout 60; \
+                 set net:max-retries 20; \
+                 set ftp:list-options -a; \
+                 cd '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region'; \
+                 mirror --continue --verbose --parallel=2 . ./mc_world/dimensions/minecraft/overworld/region"
+
+        echo "Kopíruji regiony do kořenové složky pro MinedMap..."
+        cp -r ./mc_world/dimensions/minecraft/overworld/region/* ./mc_world/region/
+
+        echo "--- Celkový počet stažených .mca souborů ---"
+        find ./mc_world/region/ -name "*.mca" | wc -l
+        
     - name: Spuštění kompilace do HTML
       shell: pwsh
       run: |
