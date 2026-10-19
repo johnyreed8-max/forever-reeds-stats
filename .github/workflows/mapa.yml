@@ -3,7 +3,7 @@ name: Automatická aktualizace mapy světa
 on:
   schedule:
     - cron: '0 3 1,15 * *' # Spustí se automaticky 1. a 15. den v měsíci ve 3:00 ráno
-  workflow_dispatch:      # Umožňuje i ruční spuštění jedním klikem
+  workflow_dispatch:      # Umožňuje ruční spuštění jedním klikem v záložce Actions
 
 permissions:
   contents: write
@@ -16,9 +16,9 @@ jobs:
     - name: Checkout repozitáře
       uses: actions/checkout@v4
 
-    - name: Vytvoření složek
+    - name: Vytvoření správné struktury složek
       run: |
-        mkdir -p mc_world/region
+        mkdir -p mc_world/dimensions/minecraft/overworld/region
         mkdir -p mapa
 
     - name: Instalace lftp pro spolehlivé stahování
@@ -31,14 +31,16 @@ jobs:
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
              -O "./mc_world/level.dat" || true
 
-        echo "Stahuji kompletní regiony přes lftp zrcadlení..."
+        echo "Stahuji regiony přes lftp do správné struktury dimenzí..."
         lftp -c "open ftp://ftp.hostify.cz:21; \
                  user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
+                 set net:timeout 20; \
+                 set net:max-retries 5; \
                  cd '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region'; \
-                 mirror -c . ./mc_world/region"
+                 mirror -c -P 4 . ./mc_world/dimensions/minecraft/overworld/region"
 
         echo "--- Kontrola stažených souborů ---"
-        find ./mc_world/region/ -name "*.mca" | wc -l
+        find ./mc_world/dimensions/minecraft/overworld/region/ -name "*.mca" | wc -l
 
     - name: Generování MinedMap
       run: |
@@ -72,5 +74,5 @@ jobs:
         git config --global user.email "action@github.com"
         
         git add mapa/
-        git commit -m "Automatický update mapy světa" || echo "Žádné změny"
+        git commit -m "Automatický update kompletní mapy světa" || echo "Žádné změny"
         git push origin main
