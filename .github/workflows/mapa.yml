@@ -4,7 +4,7 @@ on:
   schedule:
     # Spustí se automaticky 1. den v měsíci ve 4:00 ráno
     - cron: '0 4 1 * *'
-  workflow_dispatch: # Umožní spustit i ručně
+  workflow_dispatch: # Umožní vám skript spustit i ručně kliknutím na tlačítko
 
 permissions:
   contents: write
@@ -22,26 +22,31 @@ jobs:
         mkdir -p mc_world/region
         mkdir -p mapa
 
-    - name: Cache pro regiony
+    - name: Kešování Minecraft regionů
       uses: actions/cache@v4
       with:
-        path: mc_world/region/
-        key: mc-regions-${{ github.run_id }}
+        path: ./mc_world/
+        key: mc-world-${{ github.run_number }}
         restore-keys: |
-          mc-regions-
+          mc-world-
 
-    - name: Stažení regionů a level.dat z Hostify FTP pomocí wget
+    - name: Rychlé paralelní stahování regionů a level.dat přes lftp
       run: |
-        # Stažení .mca regionů
-        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
-             -P "./mc_world/region/" -q || true
-
+        # Instalace lftp
+        sudo apt-get update && sudo apt-get install -y lftp -qq
+        
+        # Paralelní stahování .mca souborů (10 vláken naráz)
+        lftp -c "open ftp://${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}@ftp.hostify.cz:21; \
+                 cd /minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/; \
+                 lcd ./mc_world/region/; \
+                 mirror --parallel=10 ./ ./mc_world/region/"
+        
         # Stažení souboru level.dat, který MinedMap vyžaduje
-        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
-             -P "./mc_world/" -q || true
-             
+        lftp -c "open ftp://${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}@ftp.hostify.cz:21; \
+                 cd /minecraft/Forever%20Reeds/world/; \
+                 lcd ./mc_world/; \
+                 get level.dat" || true
+
     - name: Instalace a spuštění MinedMap (Generování mapy)
       run: |
         # Stažení nejnovějšího MinedMap
@@ -50,13 +55,13 @@ jobs:
         # Rozbalení ZIP archivu
         unzip -q minedmap.zip
         
-        # Přesun binárky do aktuálního adresáře
+        # Přesun binárky do aktuálního adresáře a nastavení práv pro spuštění
         mv MinedMap-*/minedmap ./minedmap
         chmod +x ./minedmap
         
         # Vygenerování mapy ze stažených regionů
         ./minedmap mc_world mapa
-        
+
     - name: Nahrání vygenerované mapy na GitHub větev
       run: |
         git config --global user.name "GitHub Action"
