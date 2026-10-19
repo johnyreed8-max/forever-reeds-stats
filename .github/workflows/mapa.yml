@@ -47,14 +47,22 @@ jobs:
         echo "Počet stažených .mca souborů:"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Instalace a spuštějí MinedMap (Generování mapy)
+    - name: Instalace a spuštění MinedMap (Generování mapy a HTML rozhraní)
       run: |
+        # Stažení a rozbalení MinedMapu
         wget -O minedmap.zip https://github.com/neocturne/MinedMap/releases/latest/download/MinedMap-2.8.0-x86_64-unknown-linux-gnu.zip
         unzip -q minedmap.zip
-        mv MinedMap-*/minedmap ./minedmap
+        
+        # Získání názvu rozbalené složky a přesun spustitelného souboru
+        MINEDMAP_DIR=$(ls -d MinedMap-*/)
+        cp ${MINEDMAP_DIR}minedmap ./minedmap
         chmod +x ./minedmap
         
+        # Generování dat mapy
         ./minedmap mc_world mapa
+        
+        # Nakopírování oficiálního HTML vieweru (index.html, JS, CSS) přímo do složky mapa/
+        cp -r ${MINEDMAP_DIR}viewer/* mapa/
 
     - name: Nahrání vygenerované mapy na GitHub větev
       run: |
