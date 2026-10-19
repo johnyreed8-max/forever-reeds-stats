@@ -31,13 +31,14 @@ jobs:
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
              -O "./mc_world/level.dat" || true
 
-        echo "Stahuji regiony přes lftp do správné struktury dimenzí..."
+        echo "Stahuji regiony přes lftp s vynucením všech souborů..."
         lftp -c "open ftp://ftp.hostify.cz:21; \
                  user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
-                 set net:timeout 20; \
-                 set net:max-retries 5; \
+                 set net:timeout 30; \
+                 set net:max-retries 10; \
+                 set ftp:list-options -a; \
                  cd '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region'; \
-                 mirror -c -P 4 . ./mc_world/dimensions/minecraft/overworld/region"
+                 mirror -c -v -P 4 --parallel-directories . ./mc_world/dimensions/minecraft/overworld/region"
 
         echo "--- Kontrola stažených souborů ---"
         find ./mc_world/dimensions/minecraft/overworld/region/ -name "*.mca" | wc -l
