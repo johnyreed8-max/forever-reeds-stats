@@ -21,7 +21,6 @@ jobs:
         mkdir -p mc_world/region
         mkdir -p mapa
 
-    # Připojení GitHub Cache (pokud cache existuje, nahraje se bleskově během vteřin)
     - name: Kešování Minecraft světa
       uses: actions/cache@v4
       with:
@@ -32,17 +31,12 @@ jobs:
 
     - name: Stažení regionů a level.dat z Hostify FTP pomocí wget
       run: |
-        # Vytvoření čistých složek
-        mkdir -p mc_world/region
-
-        # Stažení level.dat z kořene světa
-        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
+        # Stažení level.dat s přihlašovacími údaji přímo v URL
+        wget "ftp://${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}@ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
              -O "./mc_world/level.dat" || true
 
-        # Stažení overworld regionů pro vanillový server
-        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
+        # Stažení overworld regionů (vanilla cesta) s přihlašovacími údaji přímo v URL
+        wget "ftp://${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}@ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
              -P "./mc_world/region/" || true
 
         echo "--- Kontrola stažených souborů ---"
@@ -50,10 +44,20 @@ jobs:
         echo "Počet stažených .mca souborů:"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Testovací krok (pouze ověření, že data existují)
+    - name: Instalace a spuštění MinedMap (Generování mapy)
       run: |
-        echo "Kontrola stažených souborů:"
-        ls -la ./mc_world/
-        ls -la ./mc_world/region/ | head -n 10
-        echo "Počet stažených .mca souborů:"
-        find ./mc_world/region/ -name "*.mca" | wc -l
+        wget -O minedmap.zip https://github.com/neocturne/MinedMap/releases/latest/download/MinedMap-2.8.0-x86_64-unknown-linux-gnu.zip
+        unzip -q minedmap.zip
+        mv MinedMap-*/minedmap ./minedmap
+        chmod +x ./minedmap
+        
+        ./minedmap mc_world mapa
+
+    - name: Nahrání vygenerované mapy na GitHub větev
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        
+        git add mapa/
+        git commit -m "Automatická aktualizace mapy světa" || echo "Žádné změny v mapě"
+        git push origin main
