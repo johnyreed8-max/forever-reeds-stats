@@ -32,19 +32,19 @@ jobs:
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
              -O "./mc_world/level.dat" || true
 
-        echo "Stahuji regiony přes lftp..."
+        echo "Stahuji regiony přes lftp s agresivním modelem..."
         lftp -c "open ftp://ftp.hostify.cz:21; \
                  user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
-                 set net:timeout 30; \
-                 set net:max-retries 10; \
+                 set net:timeout 60; \
+                 set net:max-retries 20; \
                  set ftp:list-options -a; \
                  cd '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region'; \
-                 mirror -c -v -P 4 . ./mc_world/dimensions/minecraft/overworld/region"
+                 mirror --continue --verbose . ./mc_world/dimensions/minecraft/overworld/region"
 
         echo "Kopíruji regiony do kořenové složky pro MinedMap..."
         cp -r ./mc_world/dimensions/minecraft/overworld/region/* ./mc_world/region/
 
-        echo "--- Kontrola stažených souborů ---"
+        echo "--- Celkový počet stažených .mca souborů ---"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
     - name: Generování MinedMap
@@ -78,7 +78,6 @@ jobs:
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
         
-        # Přidá všechny změny (nové soubory i smazané staré dlaždice)
         git add -A mapa/
         git commit -m "Automatický update kompletní mapy světa" || echo "Žádné změny"
         git push origin main
