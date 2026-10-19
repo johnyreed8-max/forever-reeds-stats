@@ -1,9 +1,9 @@
-name: Generování měsíční mapy světa
+name: Automatická aktualizace mapy světa
 
 on:
   schedule:
-    - cron: '0 4 1 * *'
-  workflow_dispatch:
+    - cron: '0 3 1,15 * *' # Spustí se automaticky 1. a 15. den v měsíci ve 3:00 ráno
+  workflow_dispatch:      # Umožňuje i ruční spuštění jedním klikem
 
 permissions:
   contents: write
@@ -21,52 +21,38 @@ jobs:
         mkdir -p mc_world/region
         mkdir -p mapa
 
-    - name: Kešování Minecraft světa
-      uses: actions/cache@v4
-      with:
-        path: ./mc_world/
-        key: mc-world-v1-cache
-        restore-keys: |
-          mc-world-v1-
+    - name: Instalace lftp pro spolehlivé stahování
+      run: sudo apt-get update && sudo apt-get install -y lftp
 
-    - name: Stažení regionů a level.dat z Hostify FTP pomocí wget
+    - name: Stažení komplet světa z Hostify FTP
       run: |
-        # Smažeme případné staré neúplné soubory v region
-        rm -rf ./mc_world/region/*
-
-        echo "Stahuji level.dat z FTP..."
+        echo "Stahuji level.dat..."
         wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
              -O "./mc_world/level.dat" || true
 
-        echo "Stahuji regiony (overworld) z FTP..."
-        # Zkusíme stáhnout celou složku regionů přes wget rekurzivně (-r)
-        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-             --recursive --no-parent --no-directories \
-             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/" \
-             -P "./mc_world/region/" || true
+        echo "Stahuji kompletní regiony přes lftp zrcadlení..."
+        lftp -c "open ftp://ftp.hostify.cz:21; \
+                 user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
+                 mirror -c /minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region ./mc_world/region"
 
         echo "--- Kontrola stažených souborů ---"
-        ls -la ./mc_world/region/
-        echo "Celkový počet stažených .mca souborů:"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Instalace a spuštění MinedMap (Generování mapy a strukturování pro viewer)
+    - name: Generování MinedMap
       run: |
         wget -O minedmap.zip https://github.com/neocturne/MinedMap/releases/latest/download/MinedMap-2.8.0-x86_64-unknown-linux-gnu.zip
         unzip -qo minedmap.zip
-        
         find . -name "minedmap" -type f -exec mv {} ./minedmap \;
         chmod +x ./minedmap
         
-        # Spuštění generování mapy do dočasné složky raw_map
+        # Vygenerování do dočasné složky raw_map
         ./minedmap mc_world raw_map -j 4
 
-        # Příprava složky mapa pro oficiální viewer
+        # Příprava struktury pro viewer
         rm -rf mapa
         mkdir -p mapa/data
 
-        # Přesun dat tam, kde je viewer očekává (do složky mapa/data/)
         mv raw_map/info.json mapa/data/
         mv raw_map/entities.json mapa/data/ || true
         mv raw_map/light mapa/data/ || true
@@ -74,16 +60,16 @@ jobs:
         mv raw_map/processed mapa/data/ || true
         rm -rf raw_map
 
-        # Stažení a nakopírování oficiálního webového rozhraní (vieweru) do složky mapa/
+        # Stažení oficiálního vieweru
         git clone https://github.com/neocturne/MinedMap.git minedmap-repo
         cp -r minedmap-repo/viewer/* mapa/
         rm -rf minedmap-repo
 
-    - name: Nahrání vygenerované mapy na GitHub větev
+    - name: Nahrání aktualizované mapy na GitHub
       run: |
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
         
         git add mapa/
-        git commit -m "Automatická aktualizace mapy světa a vieweru" || echo "Žádné změny v mapě"
+        git commit -m "Automatický update mapy světa" || echo "Žádné změny"
         git push origin main
