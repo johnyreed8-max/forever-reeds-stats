@@ -52,7 +52,7 @@ jobs:
         echo "Celkový počet .mca souborů pro MinedMap:"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Instalace a spuštění MinedMap (Generování mapy)
+    - name: Instalace a spuštění MinedMap (Generování mapy a webového rozhraní)
       run: |
         wget -O minedmap.zip https://github.com/neocturne/MinedMap/releases/latest/download/MinedMap-2.8.0-x86_64-unknown-linux-gnu.zip
         unzip -qo minedmap.zip
@@ -60,8 +60,13 @@ jobs:
         find . -name "minedmap" -type f -exec mv {} ./minedmap \;
         chmod +x ./minedmap
         
-        # Spuštění s -j 4 pro zapojení více CPU jader
+        # Spuštění generování mapy
         ./minedmap mc_world mapa -j 4
+
+        # Stažení a nakopírování oficiálního webového rozhraní (vieweru) přímo do složky mapa/
+        git clone https://github.com/neocturne/MinedMap.git minedmap-repo
+        cp -r minedmap-repo/viewer/* mapa/
+        rm -rf minedmap-repo
 
     - name: Nahrání vygenerované mapy na GitHub větev
       run: |
@@ -69,5 +74,5 @@ jobs:
         git config --global user.email "action@github.com"
         
         git add mapa/
-        git commit -m "Automatická aktualizace mapy světa" || echo "Žádné změny v mapě"
+        git commit -m "Automatická aktualizace mapy světa a vieweru" || echo "Žádné změny v mapě"
         git push origin main
