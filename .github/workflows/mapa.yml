@@ -31,16 +31,13 @@ jobs:
 
     - name: Stažení regionů a level.dat z Hostify FTP pomocí wget
       run: |
-        # Vytvoření čistých složek
-        mkdir -p mc_world/region
-
-        # Stažení level.dat pomocí bezpečných parametrů wget
-        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+        # Stažení level.dat se správným názvem proměnné FTP_USER
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
              -O "./mc_world/level.dat" || true
 
         # Stažení overworld regionů (vanilla cesta)
-        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
              -P "./mc_world/region/" || true
 
@@ -50,7 +47,7 @@ jobs:
         echo "Počet stažených .mca souborů:"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Instalace a spuštění MinedMap (Generování mapy)
+    - name: Instalace a spuštějí MinedMap (Generování mapy)
       run: |
         wget -O minedmap.zip https://github.com/neocturne/MinedMap/releases/latest/download/MinedMap-2.8.0-x86_64-unknown-linux-gnu.zip
         unzip -q minedmap.zip
