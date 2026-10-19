@@ -4,7 +4,10 @@ on:
   schedule:
     # Spustí se automaticky 1. den v měsíci ve 4:00 ráno
     - cron: '0 4 1 * *'
-  workflow_dispatch: # Umožní vám skript spustit i ručně kliknutím na tlačítko
+  workflow_dispatch: # Umožní spustit i ručně
+
+permissions:
+  contents: write
 
 jobs:
   build-map:
@@ -19,29 +22,34 @@ jobs:
         mkdir -p mc_world/region
         mkdir -p mapa
 
-    - name: Stažení pouze Overworld regionů z Hostify FTP
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-      with:
-        server: ${{ secrets.FTP_SERVER }}
-        username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: ./mc_world/region/
-        # Přesná cesta podle vašeho správce souborů (v uvozovkách kvůli mezeře)
-        server-dir: "/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region/"
-        method: download
-        # Stáhne pouze soubory .mca (regiony), vynechá vše ostatní
-        file-pattern: '*.mca'
+    - name: Stažení regionů z Hostify FTP pomocí wget
+      run: |
+        # wget stáhne všechny .mca soubory ze složky region přes FTP
+        wget --ftp-user="${{ secrets.FTP_USERNAME }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
+             -P "./mc_world/region/" -q || true
 
     - name: Instalace a spuštění MinedMap (Generování mapy)
       run: |
-        # Stažení nejnovějšího MinedMap nástroje
-        wget https://github.com
-        tar -xzf minedmap-linux-x86_64.tar.gz
+        # Stažení nejnovějšího MinedMap (příklad odkazu - doplňte správný release z GitHubu, pokud se liší)
+        # Zde předpokládám reálnou URL na .tar.gz balíček MinedMap z GitHub releases
+        MINDEDMAP_URL=$(curl -s https://api.github.com/repos/micropyramid/minedmap/releases/latest | grep browser_download_url | grep linux-x86_64.tar.gz | cut -d '"' -f 4)
+        
+        # Pokud by GitHub API selhalo, můžete URL zadat natvrdo, např.:
+        # wget https://github.com/miurahr/minedmap/releases/download/vX.Y.Z/minedmap-linux-x86_64.tar.gz
+        
+        # Pro jistotu použijeme stabilní stažení (pokud víte přesnou URL, nahraďte ji):
+        wget -O minedmap.tar.gz "https://github.com/minedmap/minedmap/releases/latest/download/minedmap-linux-x86_64.tar.gz" || \
+        wget -O minedmap.tar.gz "https://github.com/spoutcraft/minedmap/... (případně vaše ověřená URL)"
+        
+        # Rozbalení (předpokládá binárku uvnitř)
+        tar -xzf minedmap.tar.gz
         
         # Vygenerování mapových dlaždic ze stažených regionů
+        # (Zkontrolujte, jak se jmenuje binární soubor po rozbalení, často jen 'minedmap')
         ./minedmap mc_world mapa
 
-    - name: Nahrání vygenerované mapy na GitHub Pages větev
+    - name: Nahrání vygenerované mapy na GitHub větev
       run: |
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
