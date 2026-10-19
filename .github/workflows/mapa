@@ -1,0 +1,52 @@
+name: Generování měsíční mapy světa
+
+on:
+  schedule:
+    # Spustí se automaticky 1. den v měsíci ve 4:00 ráno
+    - cron: '0 4 1 * *'
+  workflow_dispatch: # Umožní vám skript spustit i ručně kliknutím na tlačítko
+
+jobs:
+  build-map:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repozitáře
+      uses: actions/checkout@v4
+
+    - name: Vytvoření složek
+      run: |
+        mkdir -p mc_world/region
+        mkdir -p mapa
+
+    - name: Stažení pouze Overworld regionů z Hostify FTP
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: ./mc_world/region/
+        # Přesná cesta podle vašeho správce souborů (v uvozovkách kvůli mezeře)
+        server-dir: "/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region/"
+        method: download
+        # Stáhne pouze soubory .mca (regiony), vynechá vše ostatní
+        file-pattern: '*.mca'
+
+    - name: Instalace a spuštění MinedMap (Generování mapy)
+      run: |
+        # Stažení nejnovějšího MinedMap nástroje
+        wget https://github.com
+        tar -xzf minedmap-linux-x86_64.tar.gz
+        
+        # Vygenerování mapových dlaždic ze stažených regionů
+        ./minedmap mc_world mapa
+
+    - name: Nahrání vygenerované mapy na GitHub Pages větev
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        
+        # Přidání vygenerované mapy do gitu
+        git add mapa/
+        git commit -m "Automatická aktualizace mapy světa" || echo "Žádné změny v mapě"
+        git push origin main
