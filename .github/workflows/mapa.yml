@@ -25,44 +25,43 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ./mc_world/
-        key: mc-world-v1-${{ github.run_number }}
+        key: mc-world-v1-cache
         restore-keys: |
           mc-world-v1-
 
     - name: Stažení regionů a level.dat z Hostify FTP pomocí wget
       run: |
-        # Stažení level.dat se správným názvem proměnné FTP_USER
-        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
-             -O "./mc_world/level.dat" || true
+        EXISTING_FILES=$(find ./mc_world/region/ -name "*.mca" | wc -l)
+        
+        if [ "$EXISTING_FILES" -gt 10 ]; then
+          echo "Nalezeno $EXISTING_FILES regionů v cache. Přeskakuji stahování z FTP!"
+        else
+          echo "Cache je prázdná. Stahuji data z FTP..."
+          
+          wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+               "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
+               -O "./mc_world/level.dat" || true
 
-        # Stažení overworld regionů (vanilla cesta)
-        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
-             -P "./mc_world/region/" || true
+          wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+               "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/dimensions/minecraft/overworld/region/*.mca" \
+               -P "./mc_world/region/" || true
+        fi
 
-        echo "--- Kontrola stažených souborů ---"
+        echo "--- Kontrola stavu světa ---"
         ls -la ./mc_world/
-        ls -lh ./mc_world/level.dat
-        echo "Počet stažených .mca souborů:"
+        echo "Celkový počet .mca souborů pro MinedMap:"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Instalace a spuštění MinedMap (Generování mapy a HTML rozhraní)
+    - name: Instalace a spuštění MinedMap (Generování mapy)
       run: |
-        # Stažení a rozbalení MinedMapu
         wget -O minedmap.zip https://github.com/neocturne/MinedMap/releases/latest/download/MinedMap-2.8.0-x86_64-unknown-linux-gnu.zip
-        unzip -q minedmap.zip
+        unzip -qo minedmap.zip
         
-        # Získání názvu rozbalené složky a přesun spustitelného souboru
-        MINEDMAP_DIR=$(ls -d MinedMap-*/)
-        cp ${MINEDMAP_DIR}minedmap ./minedmap
+        find . -name "minedmap" -type f -exec mv {} ./minedmap \;
         chmod +x ./minedmap
         
-        # Generování dat mapy
-        ./minedmap mc_world mapa
-        
-        # Nakopírování oficiálního HTML vieweru (index.html, JS, CSS) přímo do složky mapa/
-        cp -r ${MINEDMAP_DIR}viewer/* mapa/
+        # Spuštění s -j 4 pro zapojení více CPU jader
+        ./minedmap mc_world mapa -j 4
 
     - name: Nahrání vygenerované mapy na GitHub větev
       run: |
