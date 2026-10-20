@@ -182,6 +182,5 @@ jobs:
         git config --global user.email "action@github.com"
         
         git add -A mapa/
-        git pull origin main --rebase
         git commit -m "Update mapy světa" || echo "Žádné změny k nahrání"
         git push origin main
