@@ -73,6 +73,20 @@ jobs:
         git pull --rebase origin main
         git push origin main
 
+    - name: Update Map Zoom
+      run: |
+        if [ -f "_site/index.html" ]; then
+          sed -i 's/<iframe id="map-frame" data-src="mapa\/index.html" title="World map"><\/iframe>/<iframe id="map-frame" data-src="mapa\/index.html" title="World map" style="zoom:2.0"><\/iframe>/g' _site/index.html
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add _site/
+          git commit -m "Update map zoom" || echo "No changes to commit"
+          git pull --rebase origin main
+          git push origin main
+        else
+          echo "_site/index.html does not exist. Skipping update."
+        fi
+
     - name: Nastavení GitHub Pages prostředí
       uses: actions/configure-pages@v5
 
@@ -84,23 +98,3 @@ jobs:
     - name: Nasazení na GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4
-
-  update-map-zoom:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout repozitáře
-      uses: actions/checkout@v4
-
-    - name: Update map zoom
-      run: |
-        sed -i 's/<iframe id="map-frame" data-src="mapa\/index.html" title="World map"><\/iframe>/<iframe id="map-frame" data-src="mapa\/index.html" title="World map" style="zoom:2.0"><\/iframe>/g' _site/index.html
-
-    - name: Commit a Push updated map
-      run: |
-        git config --global user.name "GitHub Action"
-        git config --global user.email "action@github.com"
-        git add _site/
-        git commit -m "Update map zoom" || echo "No changes to commit"
-        git pull --rebase origin main
-        git push origin main
