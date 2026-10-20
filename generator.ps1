@@ -106,60 +106,11 @@ Get-ChildItem 'stats/*.json' -ErrorAction SilentlyContinue | ForEach-Object {
     $d14 = [Math]::Round($h14 / 24, 1)
     $t14 = "$h14 hrs / $d14 days"
 
-    $dt14 = if ($old) { [Math]::Max(0,$deaths - $old.Deaths) } else {$deaths }
-    $dd14 = if ($old) { [Math]::Max(0, $damageDealt -$old.DamageDealt) } else { $damageDealt }$mk14 = if ($old) { [Math]::Max(0,$mobKills - $old.MobKills) } else {$mobKills }
-    $dk14 = if ($old) { [Math]::Max(0, $dragonKills -$old.DragonKills) } else { $dragonKills }$wk14 = if ($old) { [Math]::Max(0,$witherKills - $old.WitherKills) } else {$witherKills }
-    $bm14 = if ($old) { [Math]::Max(0, $blocksMined -$old.BlocksMined) } else { $blocksMined }$bp14 = if ($old) { [Math]::Max(0,$blocksPlaced - $old.BlocksPlaced) } else {$blocksPlaced }
-    $dia14 = if ($old) { [Math]::Max(0, $totalPlayerDiamonds -$old.Diamonds) } else { $totalPlayerDiamonds }$deb14 = if ($old) { [Math]::Max(0,$ancientDebris - $old.Debris) } else {$ancientDebris }
-    $dist14 = if ($old) { [Math]::Max(0, [Math]::Round($distanceKm -$old.Distance, 1)) } else { $distanceKm }$j14 = if ($old) { [Math]::Max(0,$jumps - $old.Jumps) } else {$jumps }
-    $cr14 = if ($old) { [Math]::Max(0, $totalPlayerCrafted -$old.Crafted) } else { $totalPlayerCrafted }$tr14 = if ($old) { [Math]::Max(0,$traded - $old.Traded) } else {$traded }
-    $br14 = if ($old) { [Math]::Max(0, $animalsBred -$old.Bred) } else { $animalsBred }$tk14 = if ($old) { [Math]::Max(0,$talked - $old.Talked) } else {$talked }
-
-    $totalHours14 +=$h14; $totalDeaths14 +=$dt14; $totalMobKills14 +=$mk14; $totalMined14 +=$bm14; $totalPlaced14 +=$bp14; $totalTraded14 +=$tr14; $totalDistance14 +=$dist14; $totalTalked14 +=$tk14
-    $totalDamageDealt14 +=$dd14; $totalDiamonds14 +=$dia14; $totalDebris14 +=$deb14; $totalJumps14 +=$j14; $totalDragonKills14 +=$dk14; $totalWitherKills14 +=$wk14; $totalCrafted14 +=$cr14; $totalBred14 +=$br14
-
-    $hraciData14Days += [PSCustomObject]@{
-        Nickname = $nickname; Hours =$h14; TimePlayedText = $t14; Deaths =$dt14
-        SinceDeathHours = $sinceDeathHours; DamageDealt = $dd14; MobKills =$mk14
-        DragonKills = $dk14; WitherKills =$wk14; BlocksMined = $bm14; BlocksPlaced =$bp14
-        Diamonds = $dia14; Debris =$deb14; Distance = $dist14; Jumps =$j14
-        Crafted = $cr14; Traded =$tr14; Bred = $br14; Talked =$tk14
-    }
-}
-
-# Uložení dnešního snímku pro budoucí porovnání
-$snapshotTodayData \vert{} ConvertTo-Json -Depth 5 \vert{} Set-Content -Path$todaySnapshotFile -Encoding utf8
-
-# Řazení hráčů podle doby hraní
-$serazeniAllTime =$hraciDataAllTime | Sort-Object Hours -Descending
-$serazeni14Days =$hraciData14Days | Sort-Object Hours -Descending
-
-# --- POMOCNÁ FUNKCE PRO GENEROVÁNÍ TABULKY ---
-function Build-TableContent ($listHraci,$tHours, $tDeaths,$tDamage, $tMobKills,$tDragon, $tWither,$tMined, $tPlaced,$tDia, $tDebris,$tDist, $tJumps,$tCrafted, $tTraded,$tBred, $tTalked) {$out = "<table>"
-    
-    # Hlavička
-    $out += "<tr><th class='stat-name'>Statistic</th>"
-    $listHraci \vert{} ForEach-Object {$out += "<th class='player-header'>$($_.Nickname)</th>" }
-    $out += "<th class='server-total'>SERVER TOTAL</th></tr>"
-
-    # Opravený AddRow skriptový blok
-    $AddRow = {
-        param($label, $property,$formatSuffix = "", $serverValue = "", $lowerWins = $false,$sortProperty = "")
-        $evalProperty = if ($sortProperty -ne "") { $sortProperty } else {$property }
-
-        $values = if ($lowerWins) {
-            $listHraci \vert{} Select-Object -ExpandProperty$evalProperty | Sort-Object
-        } else {
-            $listHraci \vert{} Select-Object -ExpandProperty$evalProperty | Sort-Object -Descending
-        }
-
-        $top1 =$values[0]; $top2 =$values[1]; $top3 =$values[2]
-
-        $row = "<tr><td class='stat-name'>$label</td>"
-        foreach ($hrac in$listHraci) {
-            $val =$hrac.$property$evalVal = $hrac.$evalProperty
-            $formattedVal = if ($val -is [ValueType]) { $val.ToString("N0", $usCulture) } else { $val.ToString() }$medal = ""
-            if ($evalVal -ne 0 -or (-not $lowerWins -and$evalProperty -ne "Deaths")) {
-                if ($evalVal -eq $top1) {$medal = " 👑" }
-                elseif ($evalVal -eq $top2 -and$top2 -ne $top1) {$medal = " 🥈" }
-                elseif ($evalVal -eq $top3 -and$top3
+    $dt14 = if ($old) { [Math]::Max(0, $deaths -$old.Deaths) } else { $deaths }$dd14 = if ($old) { [Math]::Max(0,$damageDealt - $old.DamageDealt) } else {$damageDealt }
+    $mk14 = if ($old) { [Math]::Max(0, $mobKills -$old.MobKills) } else { $mobKills }$dk14 = if ($old) { [Math]::Max(0,$dragonKills - $old.DragonKills) } else {$dragonKills }
+    $wk14 = if ($old) { [Math]::Max(0, $witherKills -$old.WitherKills) } else { $witherKills }$bm14 = if ($old) { [Math]::Max(0,$blocksMined - $old.BlocksMined) } else {$blocksMined }
+    $bp14 = if ($old) { [Math]::Max(0, $blocksPlaced -$old.BlocksPlaced) } else { $blocksPlaced }$dia14 = if ($old) { [Math]::Max(0,$totalPlayerDiamonds - $old.Diamonds) } else {$totalPlayerDiamonds }
+    $deb14 = if ($old) { [Math]::Max(0, $ancientDebris -$old.Debris) } else { $ancientDebris }$dist14 = if ($old) { [Math]::Max(0, [Math]::Round($distanceKm - $old.Distance, 1)) } else {$distanceKm }
+    $j14 = if ($old) { [Math]::Max(0, $jumps -$old.Jumps) } else { $jumps }$cr14 = if ($old) { [Math]::Max(0,$totalPlayerCrafted - $old.Crafted) } else {$totalPlayerCrafted }
+    $tr14 = if ($old) { [Math]::Max(0, $traded -$old.Traded) } else { $traded }$br14 = if ($old) { [Math]::Max(0,$animalsBred - $old.Bred) } else {$animalsBred }
+    $tk14 = if ($old) { [Math]::Max(0, $talked -$old.Talked
