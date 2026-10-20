@@ -88,14 +88,18 @@ jobs:
         else
           echo "Historii commitujeme jen ve 23 UTC, přeskakuji."
         fi
-
-    - name: Nastavení GitHub Pages prostředí
-      uses: actions/configure-pages@v5
+    - name: Delete existing github-pages artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: 'github-pages'
+        path: '/tmp/github-pages'
+        if-no-files-found: ignore
 
     - name: Nahrání vygenerovaného webu jako artefakt
       uses: actions/upload-pages-artifact@v3
       with:
         path: '_site'
+
 
     - name: Nasazení na GitHub Pages
       id: deployment
