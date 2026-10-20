@@ -1,4 +1,4 @@
-name: Automatická aktualizace mapy světa (PapyrusCS)
+name: Automatická aktualizace mapy světa (Mapcrafter)
 
 on:
   schedule:
@@ -16,10 +16,10 @@ jobs:
     - name: Checkout repozitáře
       uses: actions/checkout@v4
 
-    - name: Instalace prerekvizit (lftp a libgdiplus pro PapyrusCS)
+    - name: Instalace lftp a Mapcrafter závislostí
       run: |
         sudo apt-get update
-        sudo apt-get install -y lftp libgdiplus
+        sudo apt-get install -y lftp mapcrafter || sudo apt-get install -y lftp python3
 
     - name: Vytvoření adresářové struktury
       run: |
@@ -44,21 +44,37 @@ jobs:
         echo "--- Počet stažených Overworld .mca souborů ---"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Stažení a spuštění PapyrusCS Renderu
+    - name: Příprava Mapcrafter konfigurace
       run: |
-        echo "Stahuji kompilovaný PapyrusCS..."
-        wget -O papyrus.zip https://github.com/papyrus-mc/papyruscs/releases/download/v0.5.2.0/PapyrusCS-linux-x64.zip
-        unzip -qo papyrus.zip -d ./papyrus_bin
-        chmod +x ./papyrus_bin/PapyrusCS
+        cat << 'EOF' > render.conf
+        output_dir = mapa
 
-        echo "Generuji kompletní mapu..."
-        ./papyrus_bin/PapyrusCS -w ./mc_world -o ./mapa --dim 0 -f png
+        [world:overworld]
+        input_dir = mc_world
+        dimension = overworld
 
-    - name: Commit a Push aktualizované mapy na GitHub Pages
+        [map:map_overworld]
+        name = Overworld
+        world = overworld
+        render_view = isometric
+        render_mode = daylight
+        EOF
+
+    - name: Spuštění Mapcrafter Renderu
+      run: |
+        if command -v mapcrafter &> /dev/null; then
+          mapcrafter -c render.conf -j 2
+        else
+          echo "Používám záložní CLI renderer..."
+          pip install mcmap || true
+          python3 -m mcmap mc_world mapa
+        fi
+
+    - name: Commit a Push aktualizované mapy
       run: |
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
         
         git add -A mapa/
-        git commit -m "Update mapy světa přes PapyrusCS" || echo "Žádné změny k nahrání"
+        git commit -m "Update mapy světa přes Mapcrafter" || echo "Žádné změny k nahrání"
         git push origin main
