@@ -310,11 +310,11 @@ $finalHtml = @"
             --panel: #1a1f28;
             --panel-2: #212835;
             --line: #2b3342;
-            --text: ##bdbdbd;
+            --text: #bdbdbd;
             --muted: #8d99ab;
             --emerald: #3ddc97;
             --gold: #f4c95d;
-            --silver: ##fafcfc;
+            --silver: #fafcfc;
             --bronze: #d99a6c;
         }
         * { box-sizing: border-box; }
