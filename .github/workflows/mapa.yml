@@ -32,20 +32,17 @@ jobs:
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
              -O "./mc_world/level.dat" || true
 
-        echo "Stahuji regiony přes lftp s agresivním modelem..."
+        echo "Stahuji kompletní regiony přes lftp (včetně všech dimenzí)..."
         lftp -c "open ftp://ftp.hostify.cz:21; \
                  user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
                  set net:timeout 60; \
                  set net:max-retries 20; \
                  set ftp:list-options -a; \
-                 cd '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region'; \
-                 mirror --continue --verbose . ./mc_world/dimensions/minecraft/overworld/region"
-
-        echo "Kopíruji regiony do kořenové složky pro MinedMap..."
-        cp -r ./mc_world/dimensions/minecraft/overworld/region/* ./mc_world/region/
+                 mirror --continue --verbose '/minecraft/Forever Reeds/world/region' './mc_world/region'; \
+                 mirror --continue --verbose '/minecraft/Forever Reeds/world/dimensions' './mc_world/dimensions'"
 
         echo "--- Celkový počet stažených .mca souborů ---"
-        find ./mc_world/region/ -name "*.mca" | wc -l
+        find ./mc_world/ -name "*.mca" | wc -l
 
     - name: Generování MinedMap
       run: |
