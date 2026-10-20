@@ -4,7 +4,7 @@ $historyFolder = "stats_history";
 if (-not (Test-Path $historyFolder)) { New-Item -ItemType Directory -Path $historyFolder | Out-Null };
 
 # Ensure correct time formatting
-$currentDateTime = (Get-Date).ToUniversalTime().AddHours(2).ToString("dd.MM.yyyy HH:mm:ss");
+$currentDateTime = [TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([DateTime]::UtcNow, 'Europe/Prague').ToString("dd.MM.yyyy HH:mm:ss");
 $usCulture = [System.Globalization.CultureInfo]::GetCultureInfo("cs-CZ");
 
 # Exact UUID mapping for your server
