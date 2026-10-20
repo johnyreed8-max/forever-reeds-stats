@@ -166,11 +166,10 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
 $html += Add-StatRow "Time Played" "TimePlayedText" "" $totalHours $false "Hours"
 
 # OPRAVENÉ VOLÁNÍ (odstraněno nesprávné předávání $true k přepínači)
-$html += Add-StatRow "Deaths" "Deaths" "" $totalDeaths $true
-
-$html += Add-StatRow "Time Since Last Death" "SinceDeathHours" "hrs" "" $true "SinceDeathHours"
+$html += Add-StatRow "Time Played" "TimePlayedText" "" $totalHours $false "Hours"
+$html += Add-StatRow "Deaths" "Deaths" "" $totalDeaths $true # U úmrtí chceme nejméně (proto $true)
+$html += Add-StatRow "Time Since Last Death" "SinceDeathHours" "hrs" "" $false "SinceDeathHours" # Zde je $false, protože největší číslo vyhrává!
 $html += Add-StatRow "Damage Dealt (HP)" "DamageDealt" "" $totalDamageDealt
-$html += Add-StatRow "Damage Taken (HP)" "DamageTaken" "" $totalDamageTaken $false "" $true # Pokud chcete, aby u damage taken vyhrával menší, dejte sem $true, jinak $false
 $html += Add-StatRow "Mob Kills" "MobKills" "" $totalMobKills
 $html += Add-StatRow "Ender Dragon Kills" "DragonKills" "" $totalDragonKills
 $html += Add-StatRow "Wither Kills" "WitherKills" "" $totalWitherKills
