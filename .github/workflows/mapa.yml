@@ -46,8 +46,8 @@ jobs:
 
     - name: Stažení a spuštění PapyrusCS Renderu
       run: |
-        echo "Stahuji kompilovaný PapyrusCS z GitHub Releases..."
-        wget -O papyrus.zip https://github.com/mjungnickel18/PapyrusCS/releases/latest/download/PapyrusCS-linux-x64.zip
+        echo "Stahuji kompilovaný PapyrusCS..."
+        wget -O papyrus.zip https://github.com/papyrus-mc/papyruscs/releases/download/v0.5.2.0/PapyrusCS-linux-x64.zip
         unzip -qo papyrus.zip -d ./papyrus_bin
         chmod +x ./papyrus_bin/PapyrusCS
 
