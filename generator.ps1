@@ -165,11 +165,12 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
 # Append statistics rows
 $html += Add-StatRow "Time Played" "TimePlayedText" "" $totalHours $false "Hours"
 
+# OPRAVENÉ VOLÁNÍ (odstraněno nesprávné předávání $true k přepínači)
+$html += Add-StatRow "Deaths" "Deaths" "" $totalDeaths $true
 
-$html += Add-StatRow "Deaths" "Deaths" "" $totalDeaths -lowerWins $true
-$html += Add-StatRow "Time Since Last Death" "SinceDeathHours" "hrs" ""
+$html += Add-StatRow "Time Since Last Death" "SinceDeathHours" "hrs" "" $true "SinceDeathHours"
 $html += Add-StatRow "Damage Dealt (HP)" "DamageDealt" "" $totalDamageDealt
-$html += Add-StatRow "Damage Taken (HP)" "DamageTaken" "" $totalDamageTaken
+$html += Add-StatRow "Damage Taken (HP)" "DamageTaken" "" $totalDamageTaken $false "" $true # Pokud chcete, aby u damage taken vyhrával menší, dejte sem $true, jinak $false
 $html += Add-StatRow "Mob Kills" "MobKills" "" $totalMobKills
 $html += Add-StatRow "Ender Dragon Kills" "DragonKills" "" $totalDragonKills
 $html += Add-StatRow "Wither Kills" "WitherKills" "" $totalWitherKills
@@ -179,11 +180,11 @@ $html += Add-StatRow "Diamond Ore Mined" "Diamonds" "" $totalDiamonds
 $html += Add-StatRow "Ancient Debris Mined" "Debris" "" $totalDebris
 $html += Add-StatRow "Distance Traveled" "Distance" "km" $totalDistance
 $html += Add-StatRow "Jump Count" "Jumps" "" $totalJumps
-$html += Add-StatRow "Times Crafted" "Crafted" "" $totalCrafted
+$html += Add-StatRow "Times Crafted" "Crafted" "" $totalPlayerCrafted
 $html += Add-StatRow "Trades with Villagers" "Traded" "" $totalTraded
 $html += Add-StatRow "Animals Bred" "Bred" "" $totalBred
 $html += Add-StatRow "Chat Messages" "Talked" "" $totalTalked
-$html += ""
+
 # Přidání okna s mapou pod tabulku statistik
 $html += "</table>"
 $html += "<h2 style='color: #5cff5c; margin-top: 40px;'>World Map</h2>"
