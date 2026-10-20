@@ -292,6 +292,24 @@ $tableMonthHtml   = Get-DeltaStatsForDays 30;
 $tableWeekHtml    = Get-DeltaStatsForDays 7;
 $tableDayHtml     = Get-DeltaStatsForDays 1;
 
+# Save these generated tables to HTML files
+$htmlFiles = @{
+    "AllTime" = $tableAllTimeHtml;
+    "Month"   = $tableMonthHtml;
+    "Week"    = $tableWeekHtml;
+    "Day"     = $tableDayHtml;
+}
+
+foreach ($key in $htmlFiles.Keys) {
+    $filePath = "_site/stats_${key}.html"
+    Set-Content -Path $filePath -Value $htmlFiles[$key]
+}
+
+# Generate Interesting Facts page (example)
+$interestingFactsHtml = GenerateInterestingFactsPage
+Set-Content -Path "_site/interesting_facts.html" -Value $interestingFactsHtml
+
+
 # --- FINAL HTML ASSEMBLY ---
 $finalHtml = @"
 <!DOCTYPE html>
