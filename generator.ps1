@@ -20,11 +20,29 @@ $jmena = @{
 # --- NAČTENÍ STATISTIK ZA POSLEDNÍCH 14 DNÍ ---
 $todayStr = (Get-Date).ToString("yyyy-MM-dd")
 $todaySnapshotFile = "$historyFolder/stats_$todayStr.json"
-$fourteenDaysAgoStr = (Get-Date).AddDays(-14).ToString("yyyy-MM-dd")
+$fourteenDaysAgo = (Get-Date).AddDays(-14)
+$fourteenDaysAgoStr = $fourteenDaysAgo.ToString("yyyy-MM-dd")
 
+# 1. Zkusíme najít snapshot starý přesně 14 dní (nebo nejbližší starší)
 $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction SilentlyContinue | 
     Where-Object { $_.BaseName -le "stats_$fourteenDaysAgoStr" } | 
     Sort-Object Name -Descending | Select-Object -First 1
+
+# 2. Pokud 14 dní starý soubor není, vezmeme vůbec ten nejstarší, jaký v historii máme (pro rozjezd)
+if (-not $oldSnapshotFile) {
+    $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction SilentlyContinue | 
+        Sort-Object Name -Ascending | Select-Object -First 1
+}
+
+# Určení reálného data "od" pro zobrazení v HTML
+$periodStartDate = if ($oldSnapshotFile) { 
+    # Vytáhneme datum z názvu souboru stats_YYYY-MM-DD.json
+    $datePart = $oldSnapshotFile.BaseName.Replace("stats_", "")
+    [DateTime]::ParseExact($datePart, "yyyy-MM-dd", $null).ToString("dd.MM.yyyy")
+} else {
+    (Get-Date).ToString("dd.MM.yyyy") # Pokud historie není, začíná to dnes
+}
+$periodEndDate = (Get-Date).ToString("dd.MM.yyyy")
 
 $oldStatsData = @{}
 if ($oldSnapshotFile) {
@@ -33,7 +51,6 @@ if ($oldSnapshotFile) {
         $oldStatsData[$_.Name] = $_.Value
     }
 }
-
 # --- NAČTENÍ AKTUÁLNÍCH STATISTIK ---
 $hraciDataAllTime = @()
 $hraciData14Days = @(); $snapshotTodayData = @{}
@@ -332,7 +349,7 @@ $finalHtml = @"
 
     <div class="tab-buttons">
         <button class="tab-btn active" onclick="showTab('all-time', this)">Celá doba 🏆</button>
-        <button class="tab-btn" onclick="showTab('fourteen-days', this)">Posledních 14 dní 📅</button>
+        <button class="tab-btn" onclick="showTab('fourteen-days', this)">Posledních 14 dní ($periodStartDate - $periodEndDate) 📅</button>
     </div>
 
     <div id="all-time" class="tab-content active">
