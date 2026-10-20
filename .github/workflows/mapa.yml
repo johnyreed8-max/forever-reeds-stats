@@ -16,47 +16,45 @@ jobs:
     - name: Checkout repozitáře
       uses: actions/checkout@v4
 
-    - name: Instalace .NET SDK a lftp
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
-
-    - name: Instalace lftp
-      run: sudo apt-get update && sudo apt-get install -y lftp
+    - name: Instalace prerekvizit (lftp a libgdiplus pro PapyrusCS)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lftp libgdiplus
 
     - name: Vytvoření adresářové struktury
       run: |
         mkdir -p mc_world/region
         mkdir -p mapa
 
-    - name: Stažení regionů z Hostify FTP
+    - name: Rychlé paralelní stažení regionů z Hostify FTP
       run: |
         echo "Stahuji level.dat..."
         wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
              -O "./mc_world/level.dat" || true
 
-        echo "Stahuji regiony ze správné cesty v dimenzích..."
-        mkdir -p ./mc_world/region
+        echo "Stahuji regiony Overworldu v 10 paralelních vláknech..."
         lftp -c "open ftp://ftp.hostify.cz:21; \
                  user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
-                 set net:timeout 60; \
-                 set net:max-retries 20; \
+                 set net:timeout 30; \
+                 set net:max-retries 10; \
                  set ftp:list-options -a; \
-                 mirror --continue --verbose '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region' './mc_world/region'"
+                 mirror --continue --parallel=10 '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region' './mc_world/region'"
 
-        echo "--- Počet stažených .mca souborů ---"
+        echo "--- Počet stažených Overworld .mca souborů ---"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Instalace a spuštění PapyrusCS
+    - name: Stažení a spuštění PapyrusCS Renderu
       run: |
-        echo "Instaluji PapyrusCS CLI..."
-        dotnet tool install -g PapyrusCS || dotnet tool update -g PapyrusCS
+        echo "Stahuji kompilovaný PapyrusCS z GitHub Releases..."
+        wget -O papyrus.zip https://github.com/mjungnickel18/PapyrusCS/releases/latest/download/PapyrusCS-linux-x64.zip
+        unzip -qo papyrus.zip -d ./papyrus_bin
+        chmod +x ./papyrus_bin/PapyrusCS
 
-        echo "Generuji mapu pomocí PapyrusCS..."
-        papyruscs -w ./mc_world -o ./mapa --dim 0 -f png
+        echo "Generuji kompletní mapu..."
+        ./papyrus_bin/PapyrusCS -w ./mc_world -o ./mapa --dim 0 -f png
 
-    - name: Nahrání aktualizované mapy na GitHub
+    - name: Commit a Push aktualizované mapy na GitHub Pages
       run: |
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
