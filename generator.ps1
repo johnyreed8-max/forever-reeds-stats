@@ -29,7 +29,7 @@ $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction Sile
 $oldStatsData = @{}
 if ($oldSnapshotFile) {
     $rawOld = Get-Content$oldSnapshotFile.FullName -Raw | ConvertFrom-Json
-    foreach ($prop in $rawOld.psobject.Properties) {$oldStatsData[$prop.Name] =$prop.Value
+    $rawOld.psobject.Properties \vert{} ForEach-Object {$oldStatsData[$_.Name] =$_.Value
     }
 }
 
@@ -49,7 +49,8 @@ $totalDragonKills14 = 0; $totalWitherKills14 = 0; $totalCrafted14 = 0; $totalBre
 
 $statsFiles = Get-ChildItem 'stats/*.json' -ErrorAction SilentlyContinue
 
-foreach ($file in$statsFiles) {
+$statsFiles | ForEach-Object {
+    $file =$_
     $uuid =$file.BaseName
     $nickname = if ($jmena.Contains($uuid)) {$jmena[$uuid] } else {$uuid }
     $json = Get-Content$file.FullName -Raw | ConvertFrom-Json
@@ -78,25 +79,22 @@ foreach ($file in$statsFiles) {
     $witherKills = if ($killed.'minecraft:wither') { $killed.'minecraft:wither' } else { 0 }$talked = if ($custom.'minecraft:talked_to_villager') {$custom.'minecraft:talked_to_villager' } else { 0 }
     $traded = if ($custom.'minecraft:traded_with_villager') { $custom.'minecraft:traded_with_villager' } else { 0 }$jumps = if ($custom.'minecraft:jump') {$custom.'minecraft:jump' } else { 0 }
     $animalsBred = if ($custom.'minecraft:animals_bred') { $custom.'minecraft:animals_bred' } else { 0 }$totalPlayerCrafted = 0
-    if ($crafted) { 
-        foreach ($p in$crafted.psobject.Properties) { 
-            $totalPlayerCrafted +=$p.Value 
+    if ($crafted) {$crafted.psobject.Properties | ForEach-Object { 
+            $totalPlayerCrafted +=$_.Value 
         } 
     }
     
     $walk = if ($custom.'minecraft:walk_one_cm') { $custom.'minecraft:walk_one_cm' } else { 0 }$sprint = if ($custom.'minecraft:sprint_one_cm') {$custom.'minecraft:sprint_one_cm' } else { 0 }
     $distanceKm = [Math]::Round(($walk + $sprint) / 100 / 1000, 1)$blocksMined = 0
-    if ($mined) { 
-        foreach ($p in$mined.psobject.Properties) { 
-            $blocksMined +=$p.Value 
+    if ($mined) {$mined.psobject.Properties | ForEach-Object { 
+            $blocksMined +=$_.Value 
         } 
     }
     
     $blocksPlaced = 0
-    if ($json.stats.'minecraft:used') { 
-        foreach ($p in$json.stats.'minecraft:used'.psobject.Properties) { 
-            if ($p.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { 
-                $blocksPlaced +=$p.Value 
+    if ($json.stats.'minecraft:used') {$json.stats.'minecraft:used'.psobject.Properties | ForEach-Object { 
+            if ($_.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { 
+                $blocksPlaced +=$_.Value 
             } 
         } 
     }
@@ -219,7 +217,8 @@ function Build-TableContent ($listHraci,$tHours, $tDeaths,$tDamage, $tMobKills,$
         $top1 =$values[0]; $top2 =$values[1]; $top3 =$values[2]
 
         $row = "<tr><td class='stat-name'>$label</td>"
-        foreach ($hrac in$listHraci) {
+        $listHraci | ForEach-Object {
+            $hrac =$_
             $val =$hrac.$property$evalVal = $hrac.$evalProperty
             $formattedVal = if ($val -is [ValueType]) { $val.ToString("N0", $usCulture) } else { $val.ToString() }$medal = ""
             if ($evalVal -ne 0 -or (-not $lowerWins -and$evalProperty -ne "Deaths")) {
@@ -244,4 +243,4 @@ function Build-TableContent ($listHraci,$tHours, $tDeaths,$tDamage, $tMobKills,$
     $out += &$AddRow "Blocks Mined" "BlocksMined" "" $tMined
     $out += &$AddRow "Blocks Placed" "BlocksPlaced" "" $tPlaced
     $out += &$AddRow "Diamond Ore Mined" "Diamonds" "" $tDia
-    $out += &$
+    $out += &$AddRow "Ancient De
