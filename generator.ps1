@@ -309,9 +309,7 @@ foreach ($key in $htmlFiles.Keys) {
     Set-Content -Path $filePath -Value $htmlFiles[$key]
 }
 
-# Generate Interesting Facts page (example)
-$interestingFactsHtml = GenerateInterestingFactsPage
-Set-Content -Path "_site/interesting_facts.html" -Value $interestingFactsHtml
+
 
 
 # --- FINAL HTML ASSEMBLY ---
