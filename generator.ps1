@@ -1,558 +1,564 @@
-# Safety check: If stats & history folders do not exist, create them
-if (-not (Test-Path "stats")) { New-Item -ItemType Directory -Path "stats" | Out-Null };
-$historyFolder = "stats_history";
-if (-not (Test-Path $historyFolder)) { New-Item -ItemType Directory -Path $historyFolder | Out-Null };
+$ErrorActionPreference = 'Stop'
+$inv = [System.Globalization.CultureInfo]::InvariantCulture
 
-# Ensure correct time formatting
-$currentDateTime = [TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([DateTime]::UtcNow, 'Europe/Prague').ToString("dd.MM.yyyy HH:mm:ss");
-$usCulture = [System.Globalization.CultureInfo]::GetCultureInfo("cs-CZ");
+# --- Čas (Praha, hlídá letní/zimní čas) ---
+try { $tz = [TimeZoneInfo]::FindSystemTimeZoneById('Europe/Prague') }
+catch { $tz = [TimeZoneInfo]::FindSystemTimeZoneById('Central Europe Standard Time') }
+$now      = [TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $tz)
+$updated  = $now.ToString('dd.MM.yyyy HH:mm:ss', $inv)
+$todayStr = $now.ToString('yyyy-MM-dd', $inv)
 
-# Exact UUID mapping for your server
+$historyFolder = 'stats_history'
+$null = New-Item -ItemType Directory -Force -Path 'stats', $historyFolder
+
+# --- UUID -> nick ---
 $jmena = @{
-    '10d807ae-f713-4d9d-966d-a6e7b4bddafd' = 'dufe_com';
-    '4b91ee4a-88d0-48f0-b111-8f8e6e3647b7' = 'KarlTheBroken';
-    '90afe98a-4c6a-4469-959e-d55070e4b6b8' = 'Kathryn_Reed';
-    '953decf3-5ac0-4108-965f-3b82cea52143' = 'Alex_Reed';
-    'aa14ea23-012a-48b8-b39d-3e280496e83a' = 'Johny_Reed';
+    '10d807ae-f713-4d9d-966d-a6e7b4bddafd' = 'dufe_com'
+    '4b91ee4a-88d0-48f0-b111-8f8e6e3647b7' = 'KarlTheBroken'
+    '90afe98a-4c6a-4469-959e-d55070e4b6b8' = 'Kathryn_Reed'
+    '953decf3-5ac0-4108-965f-3b82cea52143' = 'Alex_Reed'
+    'aa14ea23-012a-48b8-b39d-3e280496e83a' = 'Johny_Reed'
     'bd265486-b561-4510-860c-76a0bc9ea3ae' = 'ettelwen'
-};
-
-# Ensure _site directory exists
-$siteDir = "_site"
-if (-not (Test-Path $siteDir)) {
-    New-Item -ItemType Directory -Path $siteDir
 }
 
-# --- NAČTENÍ AKTUÁLNÍCH STATISTIK ---
-$hraciDataAllTime = @();
-$snapshotTodayData = @{};
-
-# Rest of your script...
-
-
-# Global totals All-Time
-$totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalQuit = 0;
-$totalDamageDealt = 0; $totalDamageTaken = 0; $totalDiamonds = 0; $totalDebris = 0; $totalJumps = 0;
-$totalDragonKills = 0; $totalWitherKills = 0; $totalCrafted = 0; $totalBred = 0;
-
-$statsFiles = Get-ChildItem 'stats/*.json' -ErrorAction SilentlyContinue;
-
-$statsFiles | ForEach-Object {
-    $file = $_;
-    $uuid = $file.BaseName;
-    $nickname = if ($jmena.Contains($uuid)) { $jmena[$uuid] } else { $uuid };
-    $json = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json;
-    $custom = $json.stats.'minecraft:custom';
-    $mined = $json.stats.'minecraft:mined';
-    $killed = $json.stats.'minecraft:killed';
-    $crafted = $json.stats.'minecraft:crafted';
-    
-    # Raw values
-    $ticks = 0;
-    if ($custom.'minecraft:play_time') { $ticks = $custom.'minecraft:play_time' } elseif ($custom.'minecraft:play_one_minute') { $ticks = $custom.'minecraft:play_one_minute' };
-    
-    $hours = [Math]::Round($ticks / 20 / 60 / 60, 1);
-    $days = [Math]::Round($hours / 24, 1);
-    $timePlayedText = "$hours hrs / $days days";
-
-    $deaths = if ($custom.'minecraft:deaths') { $custom.'minecraft:deaths' } else { 0 };
-    $sinceDeathTicks = if ($custom.'minecraft:time_since_death') { $custom.'minecraft:time_since_death' } else { 0 };
-    $sinceDeathHours = [Math]::Round($sinceDeathTicks / 20 / 60 / 60, 1);
-    
-    $damageDealt = if ($custom.'minecraft:damage_dealt') { [Math]::Round($custom.'minecraft:damage_dealt' / 10, 0) } else { 0 };
-    $damageTaken = if ($custom.'minecraft:damage_taken') { [Math]::Round($custom.'minecraft:damage_taken' / 10, 0) } else { 0 };
-    $mobKills = if ($custom.'minecraft:mob_kills') { $custom.'minecraft:mob_kills' } else { 0 };
-    $dragonKills = if ($killed.'minecraft:ender_dragon') { $killed.'minecraft:ender_dragon' } else { 0 };
-    $witherKills = if ($killed.'minecraft:wither') { $killed.'minecraft:wither' } else { 0 };
-    $quit = if ($custom.'minecraft:leave_game') { $custom.'minecraft:leave_game' } else { 0 };
-    $traded = if ($custom.'minecraft:traded_with_villager') { $custom.'minecraft:traded_with_villager' } else { 0 };
-    $jumps = if ($custom.'minecraft:jump') { $custom.'minecraft:jump' } else { 0 };
-    $animalsBred = if ($custom.'minecraft:animals_bred') { $custom.'minecraft:animals_bred' } else { 0 };
-    
-    $totalPlayerCrafted = 0;
-    if ($crafted) { $crafted.psobject.Properties | ForEach-Object { $totalPlayerCrafted += $_.Value } };
-    
-    $walk = if ($custom.'minecraft:walk_one_cm') { $custom.'minecraft:walk_one_cm' } else { 0 };
-    $sprint = if ($custom.'minecraft:sprint_one_cm') { $custom.'minecraft:sprint_one_cm' } else { 0 };
-    $crouch = if ($custom.'minecraft:crouch_one_cm') { $custom.'minecraft:crouch_one_cm' } else { 0 };
-    $distanceKm = [Math]::Round(($walk + $sprint + $crouch) / 100 / 1000, 1);
-    
-    $blocksMined = 0;
-    if ($mined) { $mined.psobject.Properties | ForEach-Object { $blocksMined += $_.Value } };
-    
-    $blocksPlaced = 0;
-    if ($json.stats.'minecraft:used') { 
-        $json.stats.'minecraft:used'.psobject.Properties | ForEach-Object { 
-            if ($_.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { 
-                $blocksPlaced += $_.Value;
-            } 
-        } 
-    };
-    
-    $diamondOre = if ($mined.'minecraft:diamond_ore') { $mined.'minecraft:diamond_ore' } else { 0 };
-    $deepslateDiamondOre = if ($mined.'minecraft:deepslate_diamond_ore') { $mined.'minecraft:deepslate_diamond_ore' } else { 0 };
-    $totalPlayerDiamonds = $diamondOre + $deepslateDiamondOre;
-    $ancientDebris = if ($mined.'minecraft:ancient_debris') { $mined.'minecraft:ancient_debris' } else { 0 };
-    
-    # Save current raw values for future snapshot
-    $snapshotTodayData[$nickname] = @{
-        Hours = $hours;
-        Deaths = $deaths;
-        DamageDealt = $damageDealt;
-        DamageTaken = $damageTaken;
-        MobKills = $mobKills;
-        DragonKills = $dragonKills;
-        WitherKills = $witherKills;
-        BlocksMined = $blocksMined;
-        BlocksPlaced = $blocksPlaced;
-        Diamonds = $totalPlayerDiamonds;
-        Debris = $ancientDebris;
-        Distance = $distanceKm;
-        Jumps = $jumps;
-        Crafted = $totalPlayerCrafted;
-        Traded = $traded;
-        Bred = $animalsBred;
-        Quit = $quit
-    };
-
-    # Cumulative totals
-    $totalHours += $hours; $totalDeaths += $deaths; $totalMobKills += $mobKills; $totalMined += $blocksMined; $totalPlaced += $blocksPlaced; $totalTraded += $traded; $totalDistance += $distanceKm; $totalQuit += $quit;
-    $totalDamageDealt += $damageDealt; $totalDamageTaken += $damageTaken; $totalDiamonds += $totalPlayerDiamonds; $totalDebris += $ancientDebris; $totalJumps += $jumps;
-    $totalDragonKills += $dragonKills; $totalWitherKills += $witherKills; $totalCrafted += $totalPlayerCrafted; $totalBred += $animalsBred;
-
-    $hraciDataAllTime += [PSCustomObject]@{
-        Nickname = $nickname;
-        Hours = $hours;
-        TimePlayedText = $timePlayedText;
-        Deaths = $deaths;
-        SinceDeathHours = $sinceDeathHours;
-        DamageDealt = $damageDealt;
-        DamageTaken = $damageTaken;
-        MobKills = $mobKills;
-        DragonKills = $dragonKills;
-        WitherKills = $witherKills;
-        BlocksMined = $blocksMined;
-        BlocksPlaced = $blocksPlaced;
-        Diamonds = $totalPlayerDiamonds;
-        Debris = $ancientDebris;
-        Distance = $distanceKm;
-        Jumps = $jumps;
-        Crafted = $totalPlayerCrafted;
-        Traded = $traded;
-        Bred = $animalsBred;
-        Quit = $quit
-    };
-};
-
-# Uložíme dnešní snapshot
-$todayStr = (Get-Date).ToString("yyyy-MM-dd");
-$todaySnapshotFile = "$historyFolder/stats_$todayStr.json";
-$snapshotTodayData | ConvertTo-Json -Depth 5 | Set-Content -Path $todaySnapshotFile -Encoding utf8;
-
-# Sorting
-$serazeniAllTime = $hraciDataAllTime | Sort-Object Hours -Descending;
-
-# --- HTML Table Builder ---
-function Build-TableContent ($listHraci, $tHours, $tDeaths, $tDamage, $tMobKills, $tDragon, $tWither, $tMined, $tPlaced, $tDia, $tDebris, $tDist, $tJumps, $tCrafted, $tTraded, $tBred, $tQuit) {
-    $out = "<table>";
-    $out += "<tr><th class='stat-name'>Statistic</th>";
-    $listHraci | ForEach-Object { $out += "<th class='player-header'>$($_.Nickname)</th>" };
-    $out += "<th class='server-total'>Server total</th></tr>";
-
-    $AddRow = {
-        param($label, $property, $formatSuffix = "", $serverValue = "", $lowerWins = $false, $sortProperty = "")
-        $evalProperty = if ($sortProperty -ne "") { $sortProperty } else { $property };
-
-        $values = if ($lowerWins) {
-            $listHraci | Select-Object -ExpandProperty $evalProperty | Sort-Object
-        } else {
-            $listHraci | Select-Object -ExpandProperty $evalProperty | Sort-Object -Descending
-        };
-
-        $top1 = $values[0]; $top2 = $values[1]; $top3 = $values[2];
-
-        $row = "<tr><td class='stat-name'>$label</td>";
-        $listHraci | ForEach-Object {
-            $hrac = $_;
-            $val = $hrac.$property;
-            $evalVal = $hrac.$evalProperty;
-            $formattedVal = if ($val -is [ValueType]) { $val.ToString("N0", $usCulture) } else { $val.ToString() };
-            
-            $medal = "";
-            $cls = "";
-            if ($evalVal -ne 0 -or (-not $lowerWins -and $evalProperty -ne "Deaths")) {
-                if ($evalVal -eq $top1) { $medal = "<span class='medal'>👑</span>"; $cls = " class='r1'" } 
-                elseif ($evalVal -eq $top2 -and $top2 -ne $top1) { $medal = "<span class='medal'>🥈</span>"; $cls = " class='r2'" } 
-                elseif ($evalVal -eq $top3 -and $top3 -ne $top2 -and $top3 -ne $top1) { $medal = "<span class='medal'>🥉</span>"; $cls = " class='r3'" }
-            };
-            $unit = if ($formatSuffix -ne "") { "<span class='unit'> $formatSuffix</span>" } else { "" };
-            $row += "<td$cls>$formattedVal$unit$medal</td>";
-        };
-        $formattedServerVal = if ($serverValue -is [ValueType]) { $serverValue.ToString("N0", $usCulture) } else { $serverValue };
-        $finalServerVal = if ($serverValue -ne "") { $formattedServerVal } else { "—" };
-        $serverUnit = if ($formatSuffix -ne "" -and $serverValue -ne "") { "<span class='unit'> $formatSuffix</span>" } else { "" };
-        $row += "<td class='server-total'>$finalServerVal$serverUnit</td></tr>";
-        return $row
-    };
-
-    $out += & $AddRow "⏱️ Time Played" "TimePlayedText" "" $tHours $false "Hours";
-    $out += & $AddRow "💀 Deaths" "Deaths" "" $tDeaths $true;
-    $out += & $AddRow "🛡️ Time Since Last Death" "SinceDeathHours" "hrs" "" $false "SinceDeathHours";
-    $out += & $AddRow "⚔️ Damage Dealt (HP)" "DamageDealt" "" $tDamage;
-    $out += & $AddRow "🧟 Mob Kills" "MobKills" "" $tMobKills;
-    $out += & $AddRow "🐉 Ender Dragon Kills" "DragonKills" "" $tDragon;
-    $out += & $AddRow "💀 Wither Kills" "WitherKills" "" $tWither;
-    $out += & $AddRow "⛏️ Blocks Mined" "BlocksMined" "" $tMined;
-    $out += & $AddRow "🧱 Blocks Placed" "BlocksPlaced" "" $tPlaced;
-    $out += & $AddRow "💎 Diamond Ore Mined" "Diamonds" "" $tDia;
-    $out += & $AddRow "🔥 Ancient Debris Mined" "Debris" "" $tDebris;
-    $out += & $AddRow "🧭 Distance Traveled" "Distance" "km" $tDist;
-    $out += & $AddRow "🦘 Jump Count" "Jumps" "" $tJumps;
-    $out += & $AddRow "🔨 Times Crafted" "Crafted" "" $tCrafted;
-    $out += & $AddRow "🤝 Trades with Villagers" "Traded" "" $tTraded;
-    $out += & $AddRow "🐄 Animals Bred" "Bred" "" $tBred;
-    $out += & $AddRow "🚪 Games Quit" "Quit" "" $tQuit;
-    $out += "</table>";
-
-    return $out
-}
-
-
-# --- UNIVERZÁLNÍ FUNKCE PRO VÝPOČET DELTY ZA URČITÝ POČET DNÍ ---
-function Get-DeltaStatsForDays($days) {
-    $targetDateStr = (Get-Date).AddDays(-$days).ToString("yyyy-MM-dd");
-
-    # Najdeme starší snapshot
-    $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction SilentlyContinue | 
-        Where-Object { $_.BaseName -le "stats_$targetDateStr" } | 
-        Sort-Object Name -Descending | Select-Object -First 1;
-
-    if (-not $oldSnapshotFile) {
-        $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction SilentlyContinue | 
-            Sort-Object Name | Select-Object -First 1;
-    };
-
-    $oldStatsData = @{};
-    if ($oldSnapshotFile) {
-        $rawOld = Get-Content -Path $oldSnapshotFile.FullName -Raw | ConvertFrom-Json;
-        $rawOld.psobject.Properties | ForEach-Object { $oldStatsData[$_.Name] = $_.Value };
-    };
-
-    $listDelta = @();
-    $totH = 0; $totD = 0; $totDMG = 0; $totMK = 0; $totDK = 0; $totWK = 0; $totBM = 0; $totBP = 0; $totDIA = 0; $totDEB = 0; $totDIST = 0; $totJ = 0; $totCR = 0; $totTR = 0; $totBR = 0; $totTK = 0;
-
-    foreach ($hrac in $hraciDataAllTime) {
-        $nickname = $hrac.Nickname;
-        $old = if ($oldStatsData.ContainsKey($nickname)) { $oldStatsData[$nickname] } else { $null };
-
-        $h = if ($old) { [Math]::Max(0, [Math]::Round($hrac.Hours - $old.Hours, 1)) } else { $hrac.Hours };
-        $d = [Math]::Round($h / 24, 1);
-        $t = "$h hrs / $d days";
-
-        $dt = if ($old) { [Math]::Max(0, $hrac.Deaths - $old.Deaths) } else { $hrac.Deaths };
-        $dd = if ($old) { [Math]::Max(0, $hrac.DamageDealt - $old.DamageDealt) } else { $hrac.DamageDealt };
-        $mk = if ($old) { [Math]::Max(0, $hrac.MobKills - $old.MobKills) } else { $hrac.MobKills };
-        $dk = if ($old) { [Math]::Max(0, $hrac.DragonKills - $old.DragonKills) } else { $hrac.DragonKills };
-        $wk = if ($old) { [Math]::Max(0, $hrac.WitherKills - $old.WitherKills) } else { $hrac.WitherKills };
-        $bm = if ($old) { [Math]::Max(0, $hrac.BlocksMined - $old.BlocksMined) } else { $hrac.BlocksMined };
-        $bp = if ($old) { [Math]::Max(0, $hrac.BlocksPlaced - $old.BlocksPlaced) } else { $hrac.BlocksPlaced };
-        $dia = if ($old) { [Math]::Max(0, $hrac.Diamonds - $old.Diamonds) } else { $hrac.Diamonds };
-        $deb = if ($old) { [Math]::Max(0, $hrac.Debris - $old.Debris) } else { $hrac.Debris };
-        $dist = if ($old) { [Math]::Max(0, [Math]::Round($hrac.Distance - $old.Distance, 1)) } else { $hrac.Distance };
-        $j = if ($old) { [Math]::Max(0, $hrac.Jumps - $old.Jumps) } else { $hrac.Jumps };
-        $cr = if ($old) { [Math]::Max(0, $hrac.Crafted - $old.Crafted) } else { $hrac.Crafted };
-        $tr = if ($old) { [Math]::Max(0, $hrac.Traded - $old.Traded) } else { $hrac.Traded };
-        $br = if ($old) { [Math]::Max(0, $hrac.Bred - $old.Bred) } else { $hrac.Bred };
-        $tk = if ($old -and $null -ne $old.Quit) { [Math]::Max(0, $hrac.Quit - $old.Quit) } elseif ($old) { 0 } else { $hrac.Quit };
-
-        $totH += $h; $totD += $dt; $totDMG += $dd; $totMK += $mk; $totDK += $dk; $totWK += $wk; $totBM += $bm; $totBP += $bp;
-        $totDIA += $dia; $totDEB += $deb; $totDIST += $dist; $totJ += $j; $totCR += $cr; $totTR += $tr; $totBR += $br; $totTK += $tk;
-
-        $listDelta += [PSCustomObject]@{
-            Nickname = $nickname;
-            Hours = $h;
-            TimePlayedText = $t;
-            Deaths = $dt;
-            SinceDeathHours = $hrac.SinceDeathHours;
-            DamageDealt = $dd;
-            MobKills = $mk;
-            DragonKills = $dk;
-            WitherKills = $wk;
-            BlocksMined = $bm;
-            BlocksPlaced = $bp;
-            Diamonds = $dia;
-            Debris = $deb;
-            Distance = $dist;
-            Jumps = $j;
-            Crafted = $cr;
-            Traded = $tr;
-            Bred = $br;
-            Quit = $tk
-        };
-    };
-
-    $sortedDelta = $listDelta | Sort-Object Hours -Descending;
-    $tableHtml = Build-TableContent $sortedDelta $totH $totD $totDMG $totMK $totDK $totWK $totBM $totBP $totDIA $totDEB $totDIST $totJ $totCR $totTR $totBR $totTK;
-    return $tableHtml
-}
-
-# --- GENERACE TABULEK PRO VŠECHNA OBDOBÍ ---
-$tableAllTimeHtml = Build-TableContent $serazeniAllTime $totalHours $totalDeaths $totalDamageDealt $totalMobKills $totalDragonKills $totalWitherKills $totalMined $totalPlaced $totalDiamonds $totalDebris $totalDistance $totalJumps $totalCrafted $totalTraded $totalBred $totalQuit;
-$tableMonthHtml   = Get-DeltaStatsForDays 30;
-$tableWeekHtml    = Get-DeltaStatsForDays 7;
-$tableDayHtml     = Get-DeltaStatsForDays 1;
-
-# Save these generated tables to HTML files
-$htmlFiles = @{
-    "AllTime" = $tableAllTimeHtml;
-    "Month"   = $tableMonthHtml;
-    "Week"    = $tableWeekHtml;
-    "Day"     = $tableDayHtml;
-}
-
-foreach ($key in $htmlFiles.Keys) {
-    $filePath = "_site/stats_${key}.html"
-    Set-Content -Path $filePath -Value $htmlFiles[$key]
-}
-
-
-
-
-# --- FINAL HTML ASSEMBLY ---
-$finalHtml = @"
-<!DOCTYPE html>
-<html lang='cs'>
-<head>
-    <meta charset='UTF-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1'>
-    <meta name='color-scheme' content='dark'>
-    <title>Forever Reeds MC Server</title>
-    <link rel='preconnect' href='https://fonts.googleapis.com'>
-    <link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
-    <link href='https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap' rel='stylesheet'>
-    <style>
-        :root {
-            --bg: #12151b;
-            --panel: #1a1f28;
-            --panel-2: #212835;
-            --line: #2b3342;
-            --text: #bdbdbd;
-            --muted: #8d99ab;
-            --emerald: #3ddc97;
-            --gold: #f4c95d;
-            --silver: #fafcfc;
-            --bronze: #d99a6c;
+# --- NAČTENÍ VŠECH STATISTIK (kategorie/klíč -> hodnota) ---
+$players = [ordered]@{}
+foreach ($file in (Get-ChildItem 'stats/*.json' -ErrorAction SilentlyContinue)) {
+    $uuid = $file.BaseName
+    $nick = if ($jmena.ContainsKey($uuid)) { $jmena[$uuid] } else { $uuid }
+    $json = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
+    $flat = [ordered]@{}
+    if ($json.stats) {
+        foreach ($cat in $json.stats.PSObject.Properties) {
+            $catName = $cat.Name -replace '^minecraft:', ''
+            foreach ($st in $cat.Value.PSObject.Properties) {
+                $name = $st.Name -replace '^minecraft:', ''
+                $flat["$catName/$name"] = $st.Value
+            }
         }
-        * { box-sizing: border-box; }
-        html, body { height: 100%; margin: 0; overflow: hidden; }
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'IBM Plex Sans', system-ui, 'Segoe UI', sans-serif;
-        }
-
-        .app {
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: clamp(8px, 1.6vh, 16px);
-            padding: clamp(10px, 2vh, 24px) clamp(10px, 2vw, 32px);
-        }
-
-        header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            flex-wrap: wrap;
-        }
-        .brand h1 {
-            margin: 0;
-            font-family: 'Bricolage Grotesque', system-ui, sans-serif;
-            font-weight: 800;
-            font-size: clamp(20px, 3.4vh, 32px);
-            letter-spacing: -0.02em;
-            line-height: 1.1;
-        }
-        .update-time {
-            margin-top: 4px;
-            color: var(--muted);
-            font-size: clamp(11px, 1.5vh, 13px);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .dot {
-            width: 7px; height: 7px; border-radius: 50%;
-            background: var(--emerald);
-            box-shadow: 0 0 0 0 rgba(61, 220, 151, .6);
-            animation: pulse 2.4s ease-out infinite;
-        }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(61, 220, 151, .55); }
-            70% { box-shadow: 0 0 0 7px rgba(61, 220, 151, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(61, 220, 151, 0); }
-        }
-        @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
-
-        .tabs {
-            display: inline-flex;
-            gap: 2px;
-            padding: 4px;
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 12px;
-        }
-        .tab-btn {
-            font: inherit;
-            font-weight: 500;
-            font-size: clamp(12px, 1.7vh, 14px);
-            color: var(--muted);
-            background: transparent;
-            border: 0;
-            padding: 8px 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            white-space: nowrap;
-            transition: background .15s, color .15s;
-        }
-        .tab-btn:hover { color: var(--text); background: var(--panel-2); }
-        .tab-btn:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; }
-        .tab-btn.active { background: var(--emerald); color: #08261a; font-weight: 600; }
-
-        main { flex: 1; min-height: 0; }
-        .tab-content { display: none; height: 100%; }
-        .tab-content.active { display: block; }
-
-        .card {
-            height: 100%;
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            overflow: auto;
-        }
-        .card.map { overflow: hidden; }
-        .card iframe { width: 100%; height: 100%; border: 0; display: block; }
-
-        table {
-            width: 100%;
-            height: 100%;
-            min-width: 780px;
-            min-height: 540px;
-            border-collapse: separate;
-            border-spacing: 0;
-            table-layout: fixed;
-            font-size: clamp(11px, 1.8vh, 15px);
-            font-variant-numeric: tabular-nums;
-        }
-        th, td {
-            padding: 0 clamp(8px, 1vw, 16px);
-            text-align: left;
-            vertical-align: middle;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            border-bottom: 1px solid var(--line);
-        }
-        tr:last-child td { border-bottom: 0; }
-        tr:first-child th {
-            position: sticky; top: 0; z-index: 2;
-            background: var(--panel-2);
-            font-family: 'Bricolage Grotesque', system-ui, sans-serif;
-            font-weight: 700;
-            font-size: clamp(12px, 1.9vh, 16px);
-            color: var(--text);
-        }
-        tr:not(:first-child):hover td { background: rgba(255, 255, 255, .035); }
-
-        .stat-name, th.stat-name {
-            width: clamp(170px, 17vw, 250px);
-            color: var(--muted);
-            font-weight: 500;
-            position: sticky; left: 0; z-index: 1;
-            background: var(--panel);
-            border-right: 1px solid var(--line);
-        }
-        tr:first-child th.stat-name { z-index: 3; background: var(--panel-2); color: var(--muted); }
-        tr:not(:first-child):hover td.stat-name { background: #1e2430; }
-
-        .server-total { color: var(--emerald); font-weight: 600; background: rgba(61, 220, 151, .06); }
-        th.server-total { background: rgba(61, 220, 151, .12) !important; color: var(--emerald) !important; }
-
-        td.r1 { color: var(--gold); font-weight: 600; background: rgba(244, 201, 93, .08); }
-        td.r2 { color: var(--silver); }
-        td.r3 { color: var(--bronze); }
-        .medal { margin-left: 6px; font-size: .9em; }
-        .unit { color: var(--muted); font-weight: 400; font-size: .9em; }
-        td.r1 .unit { color: inherit; opacity: .7; }
-    </style>
-    <script>
-    function showTab(tabId) {
-        var tabs = document.querySelectorAll('.tab-content');
-        for (var i = 0; i < tabs.length; i++) { tabs[i].classList.remove('active'); }
-        var btns = document.querySelectorAll('.tab-btn');
-        for (var j = 0; j < btns.length; j++) {
-            btns[j].classList.toggle('active', btns[j].getAttribute('data-tab') === tabId);
-        }
-        var target = document.getElementById(tabId);
-        if (target) { target.classList.add('active'); }
-
-        // Mapu načteme až při prvním otevření, aby se správně spočítala velikost
-        if (tabId === 'world-map') {
-            var frame = document.getElementById('map-frame');
-            if (frame && !frame.getAttribute('src')) { frame.setAttribute('src', frame.getAttribute('data-src')); }
-        }
-        try { history.replaceState(null, '', '#' + tabId); } catch (e) {}
     }
+    $players[$nick] = $flat
+}
 
-    document.addEventListener('DOMContentLoaded', function() {
-        var btns = document.querySelectorAll('.tab-btn');
-        for (var i = 0; i < btns.length; i++) {
-            btns[i].addEventListener('click', function() { showTab(this.getAttribute('data-tab')); });
+if ($players.Count -eq 0) { throw 'Nenalezeny žádné soubory statistik, index.html se nepřepisuje.' }
+
+# --- SNAPSHOT: jednou denně (první běh dne = stav na začátku dne) ---
+$snapFile = Join-Path $historyFolder "snap_$todayStr.json"
+if (-not (Test-Path $snapFile)) {
+    [ordered]@{
+        taken   = $now.ToString('dd.MM.yyyy HH:mm', $inv)
+        players = $players
+    } | ConvertTo-Json -Depth 6 -Compress | Set-Content -Path $snapFile -Encoding utf8
+}
+
+# Ponecháme posledních 45 snapshotů
+$snaps = @(Get-ChildItem "$historyFolder/snap_*.json" | Sort-Object Name)
+if ($snaps.Count -gt 45) {
+    $snaps | Select-Object -First ($snaps.Count - 45) | Remove-Item -Force
+    $snaps = @(Get-ChildItem "$historyFolder/snap_*.json" | Sort-Object Name)
+}
+
+# --- VÝPOČET ZMĚN OPROTI SNAPSHOTU ---
+function Get-Baseline([int]$daysBack) {
+    $target = $now.Date.AddDays(-$daysBack).ToString('yyyy-MM-dd', $inv)
+    $cand = $snaps | Where-Object { [string]::CompareOrdinal($_.BaseName, "snap_$target") -le 0 } | Select-Object -Last 1
+    $exact = $true
+    if (-not $cand) { $cand = $snaps | Select-Object -First 1; $exact = $false }
+    $raw = Get-Content -Path $cand.FullName -Raw | ConvertFrom-Json -AsHashtable
+    return @{ since = $raw.taken; exact = $exact; players = $raw.players }
+}
+
+function Get-Delta($basePlayers) {
+    $res = [ordered]@{}
+    foreach ($nick in $players.Keys) {
+        $cur = $players[$nick]
+        $bp  = if ($basePlayers -and $basePlayers.ContainsKey($nick)) { $basePlayers[$nick] } else { @{} }
+        $d = [ordered]@{}
+        foreach ($k in $cur.Keys) {
+            $b = if ($bp.ContainsKey($k)) { [double]$bp[$k] } else { 0 }
+            $diff = [Math]::Max(0, [double]$cur[$k] - $b)
+            if ($diff -ne 0) { $d[$k] = $diff }
         }
-        var wanted = location.hash.replace('#', '');
-        if (wanted && document.getElementById(wanted)) { showTab(wanted); }
-    });
-    </script>
+        $res[$nick] = $d
+    }
+    return $res
+}
+
+$periods = [ordered]@{}
+foreach ($def in @(@('day', 0), @('week', 6), @('month', 29))) {
+    $b = Get-Baseline $def[1]
+    $periods[$def[0]] = [ordered]@{
+        since = $b.since
+        exact = $b.exact
+        delta = (Get-Delta $b.players)
+    }
+}
+
+$data = [ordered]@{
+    updated = $updated
+    current = $players
+    periods = $periods
+}
+$dataJson = ($data | ConvertTo-Json -Depth 10 -Compress).Replace('</', '<\/')
+
+# --- HTML ŠABLONA ---
+$template = @'
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Forever Reeds MC Server</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #12151b; --panel: #1a1f28; --panel-2: #212835; --line: #2b3342;
+    --text: #e7ecf3; --muted: #8d99ab; --emerald: #3ddc97;
+    --gold: #f4c95d; --silver: #c4ccd8; --bronze: #d99a6c;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', system-ui, 'Segoe UI', sans-serif; }
+
+  .app { height: 100%; display: flex; flex-direction: column; gap: clamp(8px, 1.4vh, 14px); padding: clamp(10px, 2vh, 24px) clamp(10px, 2vw, 32px); }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .brand h1 { margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: clamp(20px, 3.4vh, 32px); letter-spacing: -0.02em; line-height: 1.1; }
+  .update-time { margin-top: 4px; color: var(--muted); font-size: clamp(11px, 1.5vh, 13px); display: flex; align-items: center; gap: 8px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--emerald); animation: pulse 2.4s ease-out infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(61,220,151,.55); } 70% { box-shadow: 0 0 0 7px rgba(61,220,151,0); } 100% { box-shadow: 0 0 0 0 rgba(61,220,151,0); } }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+
+  .tabs { display: inline-flex; gap: 2px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .tab-btn { font: inherit; font-weight: 500; font-size: clamp(12px, 1.7vh, 14px); color: var(--muted); background: transparent; border: 0; padding: 7px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+  .tab-btn:hover { color: var(--text); background: var(--panel-2); }
+  .tab-btn:focus-visible, .ctl:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; }
+  .tab-btn.active { background: var(--emerald); color: #08261a; font-weight: 600; }
+
+  .toolbar { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+  .note { color: var(--muted); font-size: clamp(11px, 1.5vh, 13px); }
+  .spacer { flex: 1; }
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ctl { font: inherit; font-size: clamp(12px, 1.7vh, 14px); color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; }
+  input.ctl { width: clamp(140px, 16vw, 220px); }
+  select.ctl { max-width: 180px; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: clamp(12px, 1.7vh, 14px); color: var(--text); user-select: none; }
+  .switch input { position: absolute; opacity: 0; }
+  .slider { width: 36px; height: 20px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); position: relative; transition: background .15s; }
+  .slider::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+  .switch input:checked + .slider { background: var(--emerald); border-color: var(--emerald); }
+  .switch input:checked + .slider::after { transform: translateX(16px); background: #08261a; }
+  .switch input:focus-visible + .slider { outline: 2px solid var(--emerald); outline-offset: 2px; }
+
+  main { flex: 1; min-height: 0; }
+  .view { height: 100%; }
+  .card { height: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: auto; }
+  .card.map { overflow: hidden; }
+  .card iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+
+  table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: clamp(11px, 1.8vh, 15px); font-variant-numeric: tabular-nums; }
+  table.fit { height: 100%; min-height: 540px; }
+  table.tall td { height: 34px; }
+  th, td { padding: 0 clamp(8px, 1vw, 16px); text-align: left; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--line); }
+  tbody tr:last-child td { border-bottom: 0; }
+  thead th { position: sticky; top: 0; z-index: 2; background: var(--panel-2); height: 40px; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 700; font-size: clamp(12px, 1.9vh, 16px); color: var(--text); }
+  tbody tr:hover td { background: rgba(255,255,255,.035); }
+
+  .stat-name { width: clamp(170px, 17vw, 250px); color: var(--muted); font-weight: 500; position: sticky; left: 0; z-index: 1; background: var(--panel); border-right: 1px solid var(--line); }
+  thead th.stat-name { z-index: 3; background: var(--panel-2); color: var(--muted); }
+  tbody tr:hover td.stat-name { background: #1e2430; }
+
+  .server-total { color: var(--emerald); font-weight: 600; background: rgba(61,220,151,.06); }
+  thead th.server-total { background: #1f3a33; color: var(--emerald); }
+
+  td.r1 { color: var(--gold); font-weight: 600; background: rgba(244,201,93,.08); }
+  td.r2 { color: var(--silver); }
+  td.r3 { color: var(--bronze); }
+  td.z { color: #5d6879; }
+  .medal { margin-left: 6px; font-size: .9em; }
+  .unit { color: var(--muted); font-weight: 400; font-size: .9em; }
+  td.r1 .unit { color: inherit; opacity: .7; }
+  tr.grp td { background: var(--panel-2); color: var(--emerald); font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 700; height: 34px; }
+  tr.grp:hover td { background: var(--panel-2); }
+
+  .fun { padding: clamp(10px, 1.6vh, 18px); display: flex; flex-direction: column; gap: 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .kpi { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .kpi b { display: block; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: clamp(18px, 3vh, 26px); font-weight: 800; color: var(--emerald); }
+  .kpi span { color: var(--muted); font-size: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+  .fc { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .fc h3 { margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: 15px; font-weight: 700; }
+  .fc .sub { color: var(--muted); font-size: 12px; margin: 2px 0 8px; }
+  .fr { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; column-gap: 8px; padding: 3px 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .fr .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fr .val { font-weight: 600; }
+  .fr .val small { color: var(--muted); font-weight: 400; }
+  .fr:first-of-type .val { color: var(--gold); }
+  .bar { grid-column: 2 / 4; height: 3px; border-radius: 2px; background: var(--line); margin-top: 3px; }
+  .bar i { display: block; height: 100%; border-radius: 2px; background: var(--emerald); }
+  .none { color: var(--muted); font-size: 13px; padding: 6px 0; }
+</style>
 </head>
 <body>
-    <div class='app'>
-        <header>
-            <div class='brand'>
-                <h1>Forever Reeds</h1>
-                <div class='update-time'><span class='dot'></span>Updated $currentDateTime</div>
-            </div>
-            <nav class='tabs'>
-                <button class='tab-btn active' data-tab='stats-all'>Lifetime 🏆</button>
-                <button class='tab-btn' data-tab='stats-month'>Month 📅</button>
-                <button class='tab-btn' data-tab='stats-week'>Week 📊</button>
-                <button class='tab-btn' data-tab='stats-day'>Day ⚡</button>
-                <button class='tab-btn' data-tab='world-map'>World map 🗺️</button>
-            </nav>
-        </header>
-
-        <main>
-            <section id='stats-all' class='tab-content active'>
-                <div class='card'>$tableAllTimeHtml</div>
-            </section>
-            <section id='stats-month' class='tab-content'>
-                <div class='card'>$tableMonthHtml</div>
-            </section>
-            <section id='stats-week' class='tab-content'>
-                <div class='card'>$tableWeekHtml</div>
-            </section>
-            <section id='stats-day' class='tab-content'>
-                <div class='card'>$tableDayHtml</div>
-            </section>
-            <section id='world-map' class='tab-content'>
-                <div class='card map'>
-                    <iframe id='map-frame' data-src='mapa/index.html' title='World map'></iframe>
-                </div>
-            </section>
-        </main>
+<div class="app">
+  <header>
+    <div class="brand">
+      <h1>Forever Reeds</h1>
+      <div class="update-time"><span class="dot"></span>Updated __UPDATED__</div>
     </div>
+    <nav class="tabs" id="main-tabs">
+      <button class="tab-btn" data-view="stats">Stats 📈</button>
+      <button class="tab-btn" data-view="fun">Fun facts ✨</button>
+      <button class="tab-btn" data-view="map">World map 🗺️</button>
+    </nav>
+  </header>
+
+  <div class="toolbar" id="toolbar">
+    <nav class="tabs" id="period-tabs">
+      <button class="tab-btn" data-period="all">Lifetime 🏆</button>
+      <button class="tab-btn" data-period="month">Month 📅</button>
+      <button class="tab-btn" data-period="week">Week 📊</button>
+      <button class="tab-btn" data-period="day">Day ⚡</button>
+    </nav>
+    <span class="note" id="note"></span>
+    <div class="spacer"></div>
+    <div class="controls" id="statsControls">
+      <input class="ctl" type="search" id="q" placeholder="Search stats…" aria-label="Search stats">
+      <label class="switch"><input type="checkbox" id="showAll"><span class="slider"></span><span>Show all stats</span></label>
+      <select class="ctl" id="cat" aria-label="Category"></select>
+    </div>
+  </div>
+
+  <main>
+    <section class="view" id="view-data"><div class="card" id="content"></div></section>
+    <section class="view" id="view-map" style="display:none"><div class="card map"><iframe id="map-frame" data-src="mapa/index.html" title="World map"></iframe></div></section>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var DATA = __DATA__;
+
+  var PERIOD_LABEL = { all: 'Lifetime', month: 'last 30 days', week: 'last 7 days', day: 'today' };
+  var STATE_KEYS = { 'custom/time_since_death': 1, 'custom/time_since_rest': 1 };
+  var CAT_NAMES = { highlights: '★ Highlights', custom: 'General', mined: 'Mined', crafted: 'Crafted', used: 'Used', broken: 'Broken', picked_up: 'Picked up', dropped: 'Dropped', killed: 'Killed', killed_by: 'Killed by' };
+  var CAT_ORDER = ['highlights', 'custom', 'mined', 'crafted', 'used', 'broken', 'picked_up', 'dropped', 'killed', 'killed_by'];
+  var NOT_PLACED = /minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup/;
+  var MEDAL = { 1: '👑', 2: '🥈', 3: '🥉' };
+
+  var CURATED = [
+    { k: 'hours',      label: '⏱️ Time Played', time: true },
+    { k: 'deaths',     label: '💀 Deaths', low: true },
+    { k: 'sinceDeath', label: '🛡️ Time Since Last Death', unit: 'hrs', dec: 1, noTotal: true },
+    { k: 'dmgDealt',   label: '⚔️ Damage Dealt (HP)' },
+    { k: 'mobKills',   label: '🧟 Mob Kills' },
+    { k: 'dragon',     label: '🐉 Ender Dragon Kills' },
+    { k: 'wither',     label: '☠️ Wither Kills' },
+    { k: 'mined',      label: '⛏️ Blocks Mined' },
+    { k: 'placed',     label: '🧱 Blocks Placed' },
+    { k: 'diamonds',   label: '💎 Diamond Ore Mined' },
+    { k: 'debris',     label: '🔥 Ancient Debris Mined' },
+    { k: 'distKm',     label: '🧭 Distance Traveled', unit: 'km', dec: 1 },
+    { k: 'jumps',      label: '🦘 Jump Count' },
+    { k: 'crafted',    label: '🔨 Times Crafted' },
+    { k: 'traded',     label: '🤝 Trades with Villagers' },
+    { k: 'bred',       label: '🐄 Animals Bred' },
+    { k: 'quit',       label: '🚪 Games Quit' }
+  ];
+
+  function rate(x, d) { return d.hours >= 0.1 ? x / d.hours : null; }
+  var FUN = [
+    { i: '⛏️', t: 'Strip miner', s: 'blocks mined per hour', dec: 0, u: '/h', f: function (d) { return rate(d.mined, d); } },
+    { i: '⚔️', t: 'Mob slayer', s: 'mob kills per hour', dec: 1, u: '/h', f: function (d) { return rate(d.mobKills, d); } },
+    { i: '🛡️', t: 'Survivor', s: 'hours played per death', dec: 1, u: 'h', f: function (d) { return d.hours >= 0.1 ? d.hours / Math.max(1, d.deaths) : null; }, note: function (d) { return d.deaths === 0 ? 'no deaths' : ''; } },
+    { i: '🧭', t: 'Explorer', s: 'kilometers per hour of play', dec: 2, u: 'km/h', f: function (d) { return rate(d.distKm, d); } },
+    { i: '🧱', t: 'Builder', s: 'blocks placed per hour', dec: 0, u: '/h', f: function (d) { return rate(d.placed, d); } },
+    { i: '💎', t: 'Diamond luck', s: 'diamond ores per 1 000 blocks mined', dec: 2, u: '', f: function (d) { return d.mined >= 50 ? d.diamonds / d.mined * 1000 : null; } },
+    { i: '🦘', t: 'Bunny hopper', s: 'jumps per hour', dec: 0, u: '/h', f: function (d) { return rate(d.jumps, d); } },
+    { i: '🔨', t: 'Craftsman', s: 'items crafted per hour', dec: 1, u: '/h', f: function (d) { return rate(d.crafted, d); } },
+    { i: '⏳', t: 'Marathon sessions', s: 'average session length (play time ÷ games quit)', dec: 0, u: 'min', f: function (d) { return d.quit > 0 && d.hours > 0 ? d.hours * 60 / d.quit : null; } },
+    { i: '🥷', t: 'Sneak factor', s: 'share of play time spent sneaking', dec: 1, u: '%', f: function (d) { return d.hours >= 0.1 ? d.sneakH / d.hours * 100 : null; } },
+    { i: '🥊', t: 'Glass cannon', s: 'damage dealt per 1 HP taken', dec: 2, u: '×', f: function (d) { return d.dmgTaken > 0 ? d.dmgDealt / d.dmgTaken : null; } },
+    { i: '🎣', t: 'Angler', s: 'fish caught per hour', dec: 1, u: '/h', f: function (d) { return rate(d.fish, d); } }
+  ];
+
+  var ui = { view: 'stats', period: 'all', showAll: false, q: '', cat: '' };
+  var cache = {};
+
+  function el(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  var fmts = {};
+  function fmt(v, dec) {
+    dec = dec || 0;
+    if (!fmts[dec]) fmts[dec] = new Intl.NumberFormat('cs-CZ', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    return fmts[dec].format(v);
+  }
+  function pretty(name) { return name.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
+
+  function sumPrefix(p, prefix, skip) {
+    var s = 0;
+    for (var k in p) {
+      if (k.indexOf(prefix) === 0 && !(skip && skip.test(k.slice(prefix.length)))) s += p[k];
+    }
+    return s;
+  }
+
+  function derive(p) {
+    function g(k) { return p[k] || 0; }
+    var ticks = g('custom/play_time') || g('custom/play_one_minute');
+    return {
+      hours: ticks / 72000,
+      deaths: g('custom/deaths'),
+      sinceDeath: g('custom/time_since_death') / 72000,
+      dmgDealt: g('custom/damage_dealt') / 10,
+      dmgTaken: g('custom/damage_taken') / 10,
+      mobKills: g('custom/mob_kills'),
+      dragon: g('killed/ender_dragon'),
+      wither: g('killed/wither'),
+      mined: sumPrefix(p, 'mined/'),
+      placed: sumPrefix(p, 'used/', NOT_PLACED),
+      diamonds: g('mined/diamond_ore') + g('mined/deepslate_diamond_ore'),
+      debris: g('mined/ancient_debris'),
+      distKm: (g('custom/walk_one_cm') + g('custom/sprint_one_cm') + g('custom/crouch_one_cm')) / 100000,
+      jumps: g('custom/jump'),
+      crafted: sumPrefix(p, 'crafted/'),
+      traded: g('custom/traded_with_villager'),
+      bred: g('custom/animals_bred'),
+      quit: g('custom/leave_game'),
+      sneakH: g('custom/sneak_time') / 72000,
+      fish: g('custom/fish_caught')
+    };
+  }
+
+  function valuesFor(period) {
+    if (cache[period]) return cache[period];
+    var out = {};
+    Object.keys(DATA.current).forEach(function (n) {
+      var cur = DATA.current[n];
+      if (period === 'all') { out[n] = cur; return; }
+      var d = (DATA.periods[period].delta || {})[n] || {};
+      var o = {};
+      Object.keys(d).forEach(function (k) { o[k] = d[k]; });
+      Object.keys(STATE_KEYS).forEach(function (k) { if (cur[k] != null) o[k] = cur[k]; });
+      out[n] = o;
+    });
+    cache[period] = out;
+    return out;
+  }
+
+  function keyInfo(key) {
+    var i = key.indexOf('/');
+    var cat = key.slice(0, i), name = key.slice(i + 1);
+    var info = { cat: cat, label: pretty(name), scale: 1, unit: '', dec: 0 };
+    if (cat === 'custom') {
+      if (/_one_cm$/.test(name)) { info.scale = 100000; info.unit = 'km'; info.dec = 2; }
+      else if (/^(play_time|play_one_minute|total_world_time|time_since_death|time_since_rest|sneak_time)$/.test(name)) { info.scale = 72000; info.unit = 'h'; info.dec = 1; }
+      else if (/^damage_/.test(name)) { info.scale = 10; info.unit = 'HP'; }
+    }
+    return info;
+  }
+
+  function curatedRows(vals, nicks) {
+    var D = {};
+    nicks.forEach(function (n) { D[n] = derive(vals[n]); });
+    return CURATED.map(function (def) {
+      var v = {}, tot = 0;
+      nicks.forEach(function (n) { v[n] = D[n][def.k]; tot += v[n]; });
+      return { cat: 'highlights', label: def.label, vals: v, total: def.noTotal ? null : tot, dec: def.dec || 0, unit: def.unit || '', time: !!def.time, low: !!def.low, medals: true };
+    });
+  }
+
+  function rawRows(vals, nicks) {
+    var keys = {};
+    nicks.forEach(function (n) { for (var k in vals[n]) keys[k] = 1; });
+    var rows = [];
+    Object.keys(keys).forEach(function (k) {
+      var info = keyInfo(k), v = {}, tot = 0;
+      nicks.forEach(function (n) { var x = (vals[n][k] || 0) / info.scale; v[n] = x; tot += x; });
+      rows.push({ cat: info.cat, label: info.label, vals: v, total: tot, dec: info.dec, unit: info.unit, time: false, low: false, medals: false });
+    });
+    rows.sort(function (a, b) {
+      var ca = CAT_ORDER.indexOf(a.cat), cb = CAT_ORDER.indexOf(b.cat);
+      if (ca < 0) ca = 99; if (cb < 0) cb = 99;
+      return (ca - cb) || (b.total - a.total) || a.label.localeCompare(b.label);
+    });
+    return rows;
+  }
+
+  function ranks(row, nicks) {
+    var vs = nicks.map(function (n) { return row.vals[n]; });
+    var uniq = vs.filter(function (v, i) { return vs.indexOf(v) === i; }).sort(function (a, b) { return row.low ? a - b : b - a; });
+    var res = {};
+    if (uniq.length < 2) return res;
+    nicks.forEach(function (n) {
+      var v = row.vals[n];
+      if (!row.low && v === 0) return;
+      var r = uniq.indexOf(v) + 1;
+      if (r <= 3 && (row.medals || r === 1)) res[n] = r;
+    });
+    return res;
+  }
+
+  function fmtVal(row, v) {
+    if (row.time) return fmt(v, 1) + ' h / ' + fmt(v / 24, 1) + ' d';
+    var s = fmt(v, row.dec);
+    return row.unit ? s + '<span class="unit"> ' + row.unit + '</span>' : s;
+  }
+
+  function sortedNicks(vals) {
+    var nicks = Object.keys(vals), h = {};
+    nicks.forEach(function (n) { h[n] = derive(vals[n]).hours; });
+    return nicks.sort(function (a, b) { return h[b] - h[a]; });
+  }
+
+  function viewStats(vals, nicks) {
+    var rows = curatedRows(vals, nicks);
+    if (ui.showAll) rows = rows.concat(rawRows(vals, nicks));
+
+    var present = {};
+    rows.forEach(function (r) { present[r.cat] = 1; });
+    var cats = CAT_ORDER.filter(function (c) { return present[c]; });
+    var sel = el('cat');
+    var opts = '<option value="">All categories</option>';
+    cats.forEach(function (c) { opts += '<option value="' + c + '">' + esc(CAT_NAMES[c] || c) + '</option>'; });
+    sel.innerHTML = opts;
+    if (!present[ui.cat]) ui.cat = '';
+    sel.value = ui.cat;
+
+    var q = ui.q.trim().toLowerCase();
+    rows = rows.filter(function (r) {
+      if (ui.cat && r.cat !== ui.cat) return false;
+      if (q && (r.label.toLowerCase().indexOf(q) < 0 && (CAT_NAMES[r.cat] || r.cat).toLowerCase().indexOf(q) < 0)) return false;
+      return true;
+    });
+    if (!rows.length) return '<div class="empty">No stats match your filter.</div>';
+
+    var fit = rows.length <= 20;
+    var minW = 200 + nicks.length * 130 + 140;
+    var h = '<table class="' + (fit ? 'fit' : 'tall') + '" style="min-width:' + minW + 'px"><thead><tr><th class="stat-name">Statistic</th>';
+    nicks.forEach(function (n) { h += '<th class="player-header" title="' + esc(n) + '">' + esc(n) + '</th>'; });
+    h += '<th class="server-total">Server total</th></tr></thead><tbody>';
+
+    var lastCat = null;
+    rows.forEach(function (row) {
+      if (ui.showAll && row.cat !== lastCat) {
+        h += '<tr class="grp"><td colspan="' + (nicks.length + 2) + '">' + esc(CAT_NAMES[row.cat] || row.cat) + '</td></tr>';
+        lastCat = row.cat;
+      }
+      var rk = ranks(row, nicks);
+      h += '<tr><td class="stat-name" title="' + esc(row.label) + '">' + esc(row.label) + '</td>';
+      nicks.forEach(function (n) {
+        var v = row.vals[n], r = rk[n];
+        var cls = r ? ' class="r' + r + '"' : (v === 0 ? ' class="z"' : '');
+        var medal = (r && row.medals) ? '<span class="medal">' + MEDAL[r] + '</span>' : '';
+        h += '<td' + cls + '>' + fmtVal(row, v) + medal + '</td>';
+      });
+      h += '<td class="server-total">' + (row.total == null ? '—' : fmtVal(row, row.total)) + '</td></tr>';
+    });
+    return h + '</tbody></table>';
+  }
+
+  function viewFun(vals, nicks) {
+    var D = {};
+    nicks.forEach(function (n) { D[n] = derive(vals[n]); });
+    function sum(k) { return nicks.reduce(function (s, n) { return s + D[n][k]; }, 0); }
+
+    var kp = [
+      [fmt(sum('hours'), 1), 'hours played'], [fmt(sum('mined')), 'blocks mined'], [fmt(sum('mobKills')), 'mobs slain'],
+      [fmt(sum('distKm'), 1), 'km travelled'], [fmt(sum('crafted')), 'items crafted'], [fmt(sum('deaths')), 'deaths']
+    ];
+    var h = '<div class="fun"><div class="kpis">';
+    kp.forEach(function (k) { h += '<div class="kpi"><b>' + k[0] + '</b><span>' + k[1] + '</span></div>'; });
+    h += '</div><div class="grid">';
+
+    FUN.forEach(function (m) {
+      var list = [];
+      nicks.forEach(function (n) {
+        var v = m.f(D[n]);
+        if (v != null && isFinite(v) && v > 0) list.push({ n: n, v: v, note: m.note ? m.note(D[n]) : '' });
+      });
+      list.sort(function (a, b) { return b.v - a.v; });
+      h += '<div class="fc"><h3>' + m.i + ' ' + m.t + '</h3><div class="sub">' + esc(m.s) + '</div>';
+      if (!list.length) {
+        h += '<div class="none">Not enough data yet</div>';
+      } else {
+        var max = list[0].v;
+        list.slice(0, 3).forEach(function (e, idx) {
+          h += '<div class="fr"><span>' + MEDAL[idx + 1] + '</span><span class="nm">' + esc(e.n) + '</span>' +
+               '<span class="val">' + fmt(e.v, m.dec) + (m.u ? ' <small>' + m.u + '</small>' : '') + (e.note ? ' <small>· ' + e.note + '</small>' : '') + '</span>' +
+               '<div class="bar"><i style="width:' + Math.max(3, e.v / max * 100).toFixed(1) + '%"></i></div></div>';
+        });
+      }
+      h += '</div>';
+    });
+    return h + '</div></div>';
+  }
+
+  function setActive(selector, attr, value) {
+    var btns = document.querySelectorAll(selector);
+    for (var i = 0; i < btns.length; i++) {
+      var on = btns[i].getAttribute(attr) === value;
+      btns[i].classList.toggle('active', on);
+      btns[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  function update() {
+    var isMap = ui.view === 'map', isStats = ui.view === 'stats';
+    setActive('#main-tabs .tab-btn', 'data-view', ui.view);
+    setActive('#period-tabs .tab-btn', 'data-period', ui.period);
+
+    el('toolbar').style.display = isMap ? 'none' : 'flex';
+    el('statsControls').style.display = isStats ? 'flex' : 'none';
+    el('cat').style.display = ui.showAll ? '' : 'none';
+    el('view-data').style.display = isMap ? 'none' : 'block';
+    el('view-map').style.display = isMap ? 'block' : 'none';
+
+    if (isMap) {
+      var frame = el('map-frame');
+      if (!frame.getAttribute('src')) frame.setAttribute('src', frame.getAttribute('data-src'));
+    } else {
+      var vals = valuesFor(ui.period), nicks = sortedNicks(vals);
+      if (ui.period === 'all') {
+        el('note').textContent = 'All-time totals';
+      } else {
+        var P = DATA.periods[ui.period];
+        el('note').textContent = 'Change since ' + P.since + (P.exact ? '' : ' · history so far') + (isStats ? '' : ' (' + PERIOD_LABEL[ui.period] + ')');
+      }
+      if (isStats) el('content').innerHTML = viewStats(vals, nicks);
+      else el('content').innerHTML = viewFun(vals, nicks);
+      el('content').scrollTop = 0;
+    }
+    try { history.replaceState(null, '', '#' + ui.view + '/' + ui.period); } catch (e) {}
+  }
+
+  function bind() {
+    var vb = document.querySelectorAll('#main-tabs .tab-btn');
+    for (var i = 0; i < vb.length; i++) vb[i].addEventListener('click', function () { ui.view = this.getAttribute('data-view'); update(); });
+    var pb = document.querySelectorAll('#period-tabs .tab-btn');
+    for (var j = 0; j < pb.length; j++) pb[j].addEventListener('click', function () { ui.period = this.getAttribute('data-period'); update(); });
+    el('q').addEventListener('input', function () { ui.q = this.value; update(); });
+    el('showAll').addEventListener('change', function () { ui.showAll = this.checked; update(); });
+    el('cat').addEventListener('change', function () { ui.cat = this.value; update(); });
+  }
+
+  var parts = location.hash.replace('#', '').split('/');
+  if (['stats', 'fun', 'map'].indexOf(parts[0]) >= 0) ui.view = parts[0];
+  if (['all', 'month', 'week', 'day'].indexOf(parts[1]) >= 0) ui.period = parts[1];
+  bind();
+  update();
+})();
+</script>
 </body>
 </html>
-"@;
+'@
 
-$finalHtml | Out-File -FilePath 'index.html' -Encoding utf8;
+$html = $template.Replace('__UPDATED__', $updated).Replace('__DATA__', $dataJson)
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) 'index.html'), $html, [System.Text.UTF8Encoding]::new($false))
+Write-Host "index.html vygenerován ($($players.Count) hráčů, snapshotů: $($snaps.Count))"
