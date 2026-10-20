@@ -1,4 +1,4 @@
-name: Automatická aktualizace mapy světa (Python Render)
+name: Automatická aktualizace mapy světa
 
 on:
   schedule:
@@ -21,62 +21,126 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Instalace lftp a knihoven pro obrázky
+    - name: Instalace lftp a Pillow
       run: |
         sudo apt-get update
         sudo apt-get install -y lftp
-        pip install Pillow anvil-parser
+        pip install Pillow
 
     - name: Vytvoření adresářové struktury
       run: |
         mkdir -p mc_world/region
         mkdir -p mapa
 
-    - name: Rychlé paralelní stažení regionů z Hostify FTP
+    - name: Stažení regionů z Hostify FTP
       run: |
-        echo "Stahuji level.dat..."
-        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
-             "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
-             -O "./mc_world/level.dat" || true
-
         echo "Stahuji regiony Overworldu v 10 paralelních vláknech..."
         lftp -c "open ftp://ftp.hostify.cz:21; \
                  user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
                  set net:timeout 30; \
                  set net:max-retries 10; \
-                 set ftp:list-options -a; \
                  mirror --continue --parallel=10 '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region' './mc_world/region'"
 
         echo "--- Počet stažených Overworld .mca souborů ---"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Generování mapy v Pythonu
+    - name: Generování efektivní 2D mapy
       shell: python
       run: |
         import os
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image
+        import struct
+        zlib = __import__('zlib')
 
+        region_dir = "mc_world/region"
         output_path = "mapa/index.html"
         img_output = "mapa/map.png"
 
-        printGenerovani = "Generuji rychlý přehled mapy..."
+        print("Analyzuji regiony a generuji mapu světa...")
+        mca_files = [f for f in os.listdir(region_dir) if f.endswith(".mca")]
         
-        # Vytvoříme přehledný obrázek (např. tmavý podklad s mřížkou a nápisem)
-        img = Image.new("RGB", (2048, 2048), color=(25, 25, 25))
-        draw = ImageDraw.Draw(img)
-        
-        # Nakreslíme jemnou mřížku
-        for i in range(0, 2048, 128):
-            draw.line([(i, 0), (i, 2048)], fill=(35, 35, 35), width=1)
-            draw.line([(0, i), (2048, i)], fill=(35, 35, 35), width=1)
-            
-        # Vložíme textový popis
-        draw.text((1024, 1000), "Forever Reeds - Světová mapa", fill=(92, 255, 92), anchor="mm")
-        
-        os.makedirs("mapa", exist_ok=True)
-        img.save(img_output)
+        if not mca_files:
+            print("Žádné .mca soubory nebyly nalezeny!")
+            # Vytvoříme fallback obrázek, ať web nehlásí chybu 404
+            img = Image.new("RGB", (1024, 1024), color=(20, 20, 20))
+            img.save(img_output)
+            exit(0)
 
-        # Vygenerujeme HTML stránku pro zobrazení
+        coords = []
+        for f in mca_files:
+            p = f.split('.')
+            if len(p) >= 3:
+                try:
+                    coords.append((int(p[1]), int(p[2])))
+                except ValueError:
+                    pass
+
+        min_x = min(c[0] for c in coords)
+        max_x = max(c[0] for c in coords)
+        min_z = min(c[1] for c in coords)
+        max_z = max(c[1] for c in coords)
+
+        reg_w = max_x - min_x + 1
+        reg_h = max_z - min_z + 1
+
+        # 1 pixel = 2 chunky pro maximální rychlost a plynulost
+        scale_w = reg_w * 16
+        scale_h = reg_h * 16
+
+        world_img = Image.new("RGB", (scale_w, scale_h), color=(30, 30, 30))
+        pixels = world_img.load()
+
+        # Jednoduché barvy terénu
+        C_GRASS = (86, 125, 70)
+        C_WATER = (40, 90, 160)
+        C_SAND = (210, 200, 150)
+        C_STONE = (110, 110, 110)
+
+        for filename in mca_files:
+            p = filename.split('.')
+            if len(p) < 3:
+                continue
+            try:
+                rx, rz = int(p[1]), int(p[2])
+            except ValueError:
+                continue
+
+            filepath = os.path.join(region_dir, filename)
+            base_px = (rx - min_x) * 16
+            base_pz = (rz - min_z) * 16
+
+            try:
+                with open(filepath, "rb") as f:
+                    header = f.read(8192)
+                    for cx in range(32):
+                        for cz in range(32):
+                            i = (cx + cz * 32) * 4
+                            offset = struct.unpack(">I", b'\x00' + header[i:i+3])[0]
+                            if offset == 0:
+                                continue
+                            
+                            f.seek(offset * 4096)
+                            length = struct.unpack(">I", f.read(4))[0]
+                            compression = f.read(1)[0]
+                            data = f.read(length - 1)
+
+                            if compression == 2: # Zlib
+                                try:
+                                    decompressed = zlib.decompress(data)
+                                    # Pokud chunk existuje, obarvíme příslušný pixel v mřížce
+                                    px = base_px + (cx // 2)
+                                    pz = base_pz + (cz // 2)
+                                    if 0 <= px < scale_w and 0 <= pz < scale_h:
+                                        pixels[px, pz] = C_GRASS
+                                except Exception:
+                                    pass
+            except Exception as e:
+                print(f"Chyba při zpracování {filename}: {e}")
+
+        os.makedirs("mapa", exist_ok=True)
+        world_img.save(img_output)
+
+        # Vygenerování čisté HTML stránky
         html_content = """<!DOCTYPE html>
         <html lang="cs">
         <head>
@@ -98,7 +162,7 @@ jobs:
         
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(html_content)
-            
+
         print("Mapa byla úspěšně vygenerována!")
 
     - name: Commit a Push aktualizované mapy
@@ -107,5 +171,5 @@ jobs:
         git config --global user.email "action@github.com"
         
         git add -A mapa/
-        git commit -m "Update mapy světa přes Python skript" || echo "Žádné změny k nahrání"
+        git commit -m "Update mapy světa" || echo "Žádné změny k nahrání"
         git push origin main
