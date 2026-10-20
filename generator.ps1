@@ -314,7 +314,7 @@ $finalHtml = @"
             --muted: #8d99ab;
             --emerald: #3ddc97;
             --gold: #f4c95d;
-            --silver: #c4ccd8;
+            --silver: #7cc0d6;
             --bronze: #d99a6c;
         }
         * { box-sizing: border-box; }
