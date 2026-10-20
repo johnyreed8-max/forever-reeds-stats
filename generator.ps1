@@ -28,8 +28,9 @@ $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction Sile
 
 $oldStatsData = @{}
 if ($oldSnapshotFile) {
-    $rawOld = Get-Content$oldSnapshotFile.FullName -Raw | ConvertFrom-Json
-    $rawOld.psobject.Properties \vert{} ForEach-Object {$oldStatsData[$_.Name] =$_.Value
+    $rawOld = Get-Content $oldSnapshotFile.FullName -Raw | ConvertFrom-Json
+    $rawOld.psobject.Properties | ForEach-Object {
+        $oldStatsData[$_.Name] = $_.Value
     }
 }
 
