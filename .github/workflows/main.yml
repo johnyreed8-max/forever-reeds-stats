@@ -1,0 +1,106 @@
+name: Minecraft Stats Auto Updater
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Run every hour for statistics update
+    - cron: '0 23 * * *' # Run at 23:00 UTC for map update
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy-stats:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Checkout repozitáře
+      uses: actions/checkout@v4
+
+    - name: Příprava složek pro statistiky a mapu
+      run: mkdir -p stats stats_history mapa
+
+    - name: Stažení statistik z Hostify FTP
+      run: |
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+          "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/players/stats/*.json" \
+          --no-directories --accept="*.json" -P "stats" -nv
+
+        count=$(find stats -name '*.json' | wc -l)
+        echo "Staženo souborů: $count"
+        if [ "$count" -eq 0 ]; then
+          echo "::error::Nepodařilo se stáhnout žádné statistiky, web se nepřepisuje."
+          exit 1
+        fi
+
+    - name: Spuštění kompilace do HTML
+      shell: pwsh
+      run: ./generator.ps1
+
+    - name: Sestavení složky webu
+      run: |
+        mkdir -p _site
+        cp index.html _site/
+        if [ -d mapa ]; then cp -r mapa _site/mapa; fi
+
+    - name: Commit a Push historie statistik (jednou denně)
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        git add stats_history/
+        git commit -m "Update historie statistik" || echo "Žádné nové snímky statistik"
+        git pull --rebase --autostash origin main
+        git push origin main
+
+    - name: Nastavení GitHub Pages prostředí
+      uses: actions/configure-pages@v5
+
+    - name: Nahrání vygenerovaného webu jako artefakt
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '_site'
+
+    - name: Nasazení na GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+  build-and-deploy-map:
+    needs: build-and-deploy-stats
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Checkout repozitáře
+      uses: actions/checkout@v4
+
+    - name: Commit a Push aktualizované mapy (jednou denně)
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        git add mapa/
+        git commit -m "Update mapy světa" || echo "Žádné změny k nahrání"
+        git pull --rebase origin main
+        git push origin main
+
+    - name: Nastavení GitHub Pages prostředí
+      uses: actions/configure-pages@v5
+
+    - name: Nahrání vygenerovaného webu jako artefakt
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '_site'
+
+    - name: Nasazení na GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
