@@ -1,11 +1,7 @@
 # Safety check: If stats & history folders do not exist, create them
-if (-not (Test-Path "stats")) { 
-    New-Item -ItemType Directory -Path "stats" | Out-Null 
-}
+if (-not (Test-Path "stats")) { New-Item -ItemType Directory -Path "stats" | Out-Null }
 $historyFolder = "stats_history"
-if (-not (Test-Path $historyFolder)) { 
-    New-Item -ItemType Directory -Path $historyFolder | Out-Null 
-}
+if (-not (Test-Path $historyFolder)) { New-Item -ItemType Directory -Path$historyFolder | Out-Null }
 
 # Ensure correct time formatting
 $currentDateTime = (Get-Date).ToUniversalTime().AddHours(2).ToString("dd.MM.yyyy HH:mm:ss")
@@ -22,38 +18,23 @@ $jmena = @{
 }
 
 # --- NAČTENÍ AKTUÁLNÍCH STATISTIK ---
-$hraciDataAllTime = @()$snapshotTodayData = @{}
+$hraciDataAllTime = @();$snapshotTodayData = @{}
 
 # Global totals All-Time
-$totalHours = 0
-$totalDeaths = 0$totalMobKills = 0
-$totalMined = 0$totalPlaced = 0
-$totalTraded = 0$totalDistance = 0
-$totalTalked = 0$totalDamageDealt = 0
-$totalDamageTaken = 0$totalDiamonds = 0
-$totalDebris = 0$totalJumps = 0
-$totalDragonKills = 0$totalWitherKills = 0
-$totalCrafted = 0$totalBred = 0
+$totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalTalked = 0$totalDamageDealt = 0; $totalDamageTaken = 0; $totalDiamonds = 0; $totalDebris = 0; $totalJumps = 0
+$totalDragonKills = 0; $totalWitherKills = 0; $totalCrafted = 0; $totalBred = 0
 
 $statsFiles = Get-ChildItem 'stats/*.json' -ErrorAction SilentlyContinue
 
 $statsFiles | ForEach-Object {
-    $file =$_
-    $uuid =$file.BaseName
+    $file =$_; $uuid =$file.BaseName
     $nickname = if ($jmena.Contains($uuid)) {$jmena[$uuid] } else {$uuid }
     $json = Get-Content$file.FullName -Raw | ConvertFrom-Json
-    $custom =$json.stats.'minecraft:custom'
-    $mined =$json.stats.'minecraft:mined'
-    $killed =$json.stats.'minecraft:killed'
-    $crafted =$json.stats.'minecraft:crafted'
+    $custom =$json.stats.'minecraft:custom'; $mined =$json.stats.'minecraft:mined'; $killed =$json.stats.'minecraft:killed'; $crafted =$json.stats.'minecraft:crafted'
     
     # Raw values
     $ticks = 0
-    if ($custom.'minecraft:play_time') { 
-        $ticks =$custom.'minecraft:play_time' 
-    } elseif ($custom.'minecraft:play_one_minute') { 
-        $ticks =$custom.'minecraft:play_one_minute' 
-    }
+    if ($custom.'minecraft:play_time') {$ticks = $custom.'minecraft:play_time' } elseif ($custom.'minecraft:play_one_minute') { $ticks =$custom.'minecraft:play_one_minute' }
     
     $hours = [Math]::Round($ticks / 20 / 60 / 60, 1)
     $days = [Math]::Round($hours / 24, 1)
@@ -67,19 +48,11 @@ $statsFiles | ForEach-Object {
     $witherKills = if ($killed.'minecraft:wither') { $killed.'minecraft:wither' } else { 0 }$talked = if ($custom.'minecraft:talked_to_villager') {$custom.'minecraft:talked_to_villager' } else { 0 }
     $traded = if ($custom.'minecraft:traded_with_villager') { $custom.'minecraft:traded_with_villager' } else { 0 }$jumps = if ($custom.'minecraft:jump') {$custom.'minecraft:jump' } else { 0 }
     $animalsBred = if ($custom.'minecraft:animals_bred') { $custom.'minecraft:animals_bred' } else { 0 }$totalPlayerCrafted = 0
-    if ($crafted) {$crafted.psobject.Properties | ForEach-Object { 
-            $totalPlayerCrafted +=$_.Value 
-        } 
-    }
+    if ($crafted) {$crafted.psobject.Properties | ForEach-Object { $totalPlayerCrafted +=$_.Value } }
     
     $walk = if ($custom.'minecraft:walk_one_cm') { $custom.'minecraft:walk_one_cm' } else { 0 }$sprint = if ($custom.'minecraft:sprint_one_cm') {$custom.'minecraft:sprint_one_cm' } else { 0 }
     $distanceKm = [Math]::Round(($walk + $sprint) / 100 / 1000, 1)$blocksMined = 0
-    if ($mined) {$mined.psobject.Properties | ForEach-Object { 
-            $blocksMined +=$_.Value 
-        } 
-    }
-    
-    $blocksPlaced = 0
+    if ($mined) { $mined.psobject.Properties \vert{} ForEach-Object {$blocksMined += $_.Value } }$blocksPlaced = 0
     if ($json.stats.'minecraft:used') {$json.stats.'minecraft:used'.psobject.Properties | ForEach-Object { 
             if ($_.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { 
                 $blocksPlaced +=$_.Value 
@@ -92,39 +65,74 @@ $statsFiles | ForEach-Object {
     
     # Save current raw values for future snapshot
     $snapshotTodayData[$nickname] = @{
-        Hours = $hours
-        Deaths = $deaths
-        DamageDealt = $damageDealt
-        DamageTaken = $damageTaken
-        MobKills = $mobKills
-        DragonKills = $dragonKills
-        WitherKills = $witherKills
-        BlocksMined = $blocksMined
-        BlocksPlaced = $blocksPlaced
-        Diamonds = $totalPlayerDiamonds
-        Debris = $ancientDebris
-        Distance = $distanceKm
-        Jumps = $jumps
-        Crafted = $totalPlayerCrafted
-        Traded = $traded
-        Bred = $animalsBred
-        Talked = $talked
+        Hours = $hours; Deaths = $deaths; DamageDealt =$damageDealt; DamageTaken = $damageTaken; MobKills =$mobKills; DragonKills = $dragonKills; WitherKills =$witherKills; BlocksMined = $blocksMined; BlocksPlaced =$blocksPlaced; Diamonds = $totalPlayerDiamonds; Debris =$ancientDebris; Distance = $distanceKm; Jumps =$jumps; Crafted = $totalPlayerCrafted; Traded =$traded; Bred = $animalsBred; Talked =$talked
     }
 
     # Cumulative totals
-    $totalHours +=$hours
-    $totalDeaths +=$deaths
-    $totalMobKills +=$mobKills
-    $totalMined +=$blocksMined
-    $totalPlaced +=$blocksPlaced
-    $totalTraded +=$traded
-    $totalDistance +=$distanceKm
-    $totalTalked +=$talked
-    $totalDamageDealt +=$damageDealt
-    $totalDamageTaken +=$damageTaken
-    $totalDiamonds +=$totalPlayerDiamonds
-    $totalDebris +=$ancientDebris
-    $totalJumps +=$jumps
-    $totalDragonKills +=$dragonKills
-    $totalWitherKills +=$witherKills
-    $totalCrafted +=$
+    $totalHours +=$hours; $totalDeaths +=$deaths; $totalMobKills +=$mobKills; $totalMined +=$blocksMined; $totalPlaced +=$blocksPlaced; $totalTraded +=$traded; $totalDistance +=$distanceKm; $totalTalked +=$talked
+    $totalDamageDealt +=$damageDealt; $totalDamageTaken +=$damageTaken; $totalDiamonds +=$totalPlayerDiamonds; $totalDebris +=$ancientDebris; $totalJumps +=$jumps
+    $totalDragonKills +=$dragonKills; $totalWitherKills +=$witherKills; $totalCrafted +=$totalPlayerCrafted; $totalBred +=$animalsBred
+
+    $hraciDataAllTime += [PSCustomObject]@{
+        Nickname = $nickname; Hours =$hours; TimePlayedText = $timePlayedText; Deaths =$deaths; SinceDeathHours = $sinceDeathHours; DamageDealt =$damageDealt; DamageTaken = $damageTaken; MobKills =$mobKills; DragonKills = $dragonKills; WitherKills =$witherKills; BlocksMined = $blocksMined; BlocksPlaced =$blocksPlaced; Diamonds = $totalPlayerDiamonds; Debris =$ancientDebris; Distance = $distanceKm; Jumps =$jumps; Crafted = $totalPlayerCrafted; Traded =$traded; Bred = $animalsBred; Talked =$talked
+    }
+}
+
+# Uložíme dnešní snapshot
+$todayStr = (Get-Date).ToString("yyyy-MM-dd")
+$todaySnapshotFile = "$historyFolder/stats_$todayStr.json"
+$snapshotTodayData \vert{} ConvertTo-Json -Depth 5 \vert{} Set-Content -Path$todaySnapshotFile -Encoding utf8
+
+# Sorting
+$serazeniAllTime =$hraciDataAllTime | Sort-Object Hours -Descending
+
+# --- HTML Table Builder ---
+function Build-TableContent ($listHraci,$tHours, $tDeaths,$tDamage, $tMobKills,$tDragon, $tWither,$tMined, $tPlaced,$tDia, $tDebris,$tDist, $tJumps,$tCrafted, $tTraded,$tBred, $tTalked) {$out = "<table>"
+    $out += "<tr><th class='stat-name'>Statistic</th>"
+    $listHraci \vert{} ForEach-Object {$out += "<th class='player-header'>$($_.Nickname)</th>" }
+    $out += "<th class='server-total'>SERVER TOTAL</th></tr>"
+
+    $AddRow = {
+        param($label, $property,$formatSuffix = "", $serverValue = "", $lowerWins = $false,$sortProperty = "")
+        $evalProperty = if ($sortProperty -ne "") { $sortProperty } else {$property }
+
+        $values = if ($lowerWins) {
+            $listHraci \vert{} Select-Object -ExpandProperty$evalProperty | Sort-Object
+        } else {
+            $listHraci \vert{} Select-Object -ExpandProperty$evalProperty | Sort-Object -Descending
+        }
+
+        $top1 =$values[0]; $top2 =$values[1]; $top3 =$values[2]
+
+        $row = "<tr><td class='stat-name'>$label</td>"
+        $listHraci | ForEach-Object {
+            $hrac =$_; $val =$hrac.$property; $evalVal = $hrac.$evalProperty
+            $formattedVal = if ($val -is [ValueType]) { $val.ToString("N0", $usCulture) } else { $val.ToString() }$medal = ""
+            if ($evalVal -ne 0 -or (-not $lowerWins -and$evalProperty -ne "Deaths")) {
+                if ($evalVal -eq $top1) {$medal = " 👑" } 
+                elseif ($evalVal -eq $top2 -and$top2 -ne $top1) {$medal = " 🥈" } 
+                elseif ($evalVal -eq $top3 -and$top3 -ne $top2 -and$top3 -ne $top1) {$medal = " 🥉" }
+            }
+            $row += "<td>$formattedVal$formatSuffix$medal</td>"
+        }
+        $formattedServerVal = if ($serverValue -is [ValueType]) { $serverValue.ToString("N0", $usCulture) } else { $serverValue }$finalServerVal = if ($serverValue -ne "") { $formattedServerVal } else { "—" }
+        $row += "<td class='server-total'>$finalServerVal$formatSuffix</td></tr>"
+        return $row
+    }
+
+    $out += &$AddRow "Time Played" "TimePlayedText" "" $tHours$false "Hours"
+    $out += &$AddRow "Deaths" "Deaths" "" $tDeaths$true
+    $out += &$AddRow "Time Since Last Death" "SinceDeathHours" "hrs" "" $false "SinceDeathHours"
+    $out += &$AddRow "Damage Dealt (HP)" "DamageDealt" "" $tDamage
+    $out += &$AddRow "Mob Kills" "MobKills" "" $tMobKills
+    $out += &$AddRow "Ender Dragon Kills" "DragonKills" "" $tDragon
+    $out += &$AddRow "Wither Kills" "WitherKills" "" $tWither
+    $out += &$AddRow "Blocks Mined" "BlocksMined" "" $tMined
+    $out += &$AddRow "Blocks Placed" "BlocksPlaced" "" $tPlaced
+    $out += &$AddRow "Diamond Ore Mined" "Diamonds" "" $tDia
+    $out += &$AddRow "Ancient Debris Mined" "Debris" "" $tDebris
+    $out += &$AddRow "Distance Traveled" "Distance" "km" $tDist
+    $out += &$AddRow "Jump Count" "Jumps" "" $tJumps
+    $out += &$AddRow "Times Crafted" "Crafted" "" $tCrafted
+    $out += &$AddRow "Trades with Villagers" "Traded" "" $tTraded
+    $out += &$AddRow "Animals Bred" "Bred" "" $tBred
