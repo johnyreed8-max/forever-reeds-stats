@@ -51,18 +51,14 @@ jobs:
         cp index.html _site/
         if [ -d mapa ]; then cp -r mapa _site/mapa; fi
 
-    - name: Commit a Push historie statistik (jednou denně)
+    - name: Commit a Push historie statistik
       run: |
-        if [ "$(date -u +%H)" -ge 23 ]; then
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          git add stats_history/
-          git commit -m "Update historie statistik" || echo "Žádné nové snímky statistik"
-          git pull --rebase --autostash origin main
-          git push origin main
-        else
-          echo "Historii commitujeme jen ve 23 UTC, přeskakuji."
-        fi
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        git add stats_history/
+        git commit -m "Update historie statistik" || echo "Žádné nové snímky statistik"
+        git pull --rebase --autostash origin main
+        git push origin main
 
     - name: Nastavení GitHub Pages prostředí
       uses: actions/configure-pages@v5
