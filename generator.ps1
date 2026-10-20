@@ -311,7 +311,7 @@ $finalHtml = @"
 <html lang='cs'>
 <head>
     <meta charset='UTF-8'>
-    <title>Minecraft Player Statistics — Forever Reeds</title>
+    <title>Forever Reeds MC Server</title>
     <style>
         body { font-family: sans-serif; background: #1e1e1e; color: #fff; padding: 40px; }
         h1 { color: #5cff5c; margin-bottom: 5px; }
@@ -344,13 +344,13 @@ $finalHtml = @"
     </script>
 </head>
 <body>
-    <h1>Player Statistics — Forever Reeds</h1>
+    <h1>Forever Reeds MC Server</h1>
     <div class='update-time'>Last updated: $currentDateTime</div>
 
 <div class="tab-buttons">
-        <button class="tab-btn active" onclick="showTab('all-time', this)">Celá doba 🏆</button>
-        <button class="tab-btn" onclick="showTab('fourteen-days', this)">Posledných 14 dní ($periodStartDate - $periodEndDate) 📅</button>
-        <button class="tab-btn" onclick="showTab('world-map', this)">Mapa sveta 🗺️</button>
+        <button class="tab-btn active" onclick="showTab('all-time', this)">All time 🏆</button>
+        <button class="tab-btn" onclick="showTab('fourteen-days', this)">14 days ($periodStartDate - $periodEndDate) 📅</button>
+        <button class="tab-btn" onclick="showTab('world-map', this)">World Map 🗺️</button>
     </div>
 
     <div id="all-time" class="tab-content active">
@@ -361,8 +361,7 @@ $finalHtml = @"
         $table14DaysHtml
     </div>
 
-    <div id="world-map" class="tab-content">
-       <div id="world-map" class="tab-content" style="width: 100%; height: 80vh;">
+    <div id="world-map" class="tab-content" style="width: 100%; height: 80vh; display: none;">
     <iframe src="mapa/index.html" style="width: 100%; height: 100%; border: none; border-radius: 8px;"></iframe>
 </div>
     </div>
