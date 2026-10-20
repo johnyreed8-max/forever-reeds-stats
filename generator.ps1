@@ -18,7 +18,7 @@ $jmena = @{
 }
 
 # --- NAČTENÍ AKTUÁLNÍCH STATISTIK ---
-$hraciDataAllTime = @()$snapshotTodayData = @{}
+$hraciDataAllTime = @();$snapshotTodayData = @{}
 
 # Global totals All-Time
 $totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalTalked = 0;
