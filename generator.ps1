@@ -343,9 +343,10 @@ $finalHtml = @"
         $table14DaysHtml
     </div>
 
-    <h2 style='color: #5cff5c; margin-top: 40px;'>World Map</h2>
-    <div style='width: 100%; height: 650px; border: 1px solid #444; border-radius: 8px; overflow: hidden;'>
-        <iframe src='mapa/index.html' style='width: 100%; height: 100%; border: none;'></iframe>
+<h2 style='color: #5cff5c; margin-top: 40px;'>World Map</h2>
+    <div style='width: 100%; border: 1px solid #444; border-radius: 8px; overflow: hidden; background: #111;'>
+        <img src='mapa/map.png' alt='World Map' style='width: 100%; height: auto; display: block;'>
+    </div>
     </div>
 </body>
 </html>
