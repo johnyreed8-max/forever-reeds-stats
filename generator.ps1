@@ -17,9 +17,18 @@ $jmena = @{
     'bd265486-b561-4510-860c-76a0bc9ea3ae' = 'ettelwen'
 };
 
+# Ensure _site directory exists
+$siteDir = "_site"
+if (-not (Test-Path $siteDir)) {
+    New-Item -ItemType Directory -Path $siteDir
+}
+
 # --- NAČTENÍ AKTUÁLNÍCH STATISTIK ---
 $hraciDataAllTime = @();
 $snapshotTodayData = @{};
+
+# Rest of your script...
+
 
 # Global totals All-Time
 $totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalQuit = 0;
