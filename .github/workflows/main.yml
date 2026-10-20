@@ -2,16 +2,17 @@ name: Minecraft Stats Auto Updater
 
 on:
   schedule:
-    - cron: '0 1 * * *'  # Every day at 1 AM UTC
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
   pages: write
+  id-token: write
 
 concurrency:
   group: "pages"
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -24,14 +25,11 @@ jobs:
     - name: Checkout repozitáře
       uses: actions/checkout@v4
 
-    - name: Nainstalujte PowerShell Core a jiné závislosti
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y powershell wget unzip
+    - name: Příprava složky pro statistiky
+      run: mkdir -p stats stats_history
 
     - name: Stažení statistik z Hostify FTP
       run: |
-        mkdir -p stats
         wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
           "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/players/stats/*.json" \
           --no-directories --accept="*.json" -P "stats" -nv
@@ -45,34 +43,33 @@ jobs:
 
     - name: Spuštění kompilace do HTML
       shell: pwsh
+      run: ./generator.ps1
+
+    - name: Sestavení složky webu
       run: |
-        $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
-        ./generator.ps1
+        mkdir -p _site
+        cp index.html _site/
+        if [ -d mapa ]; then cp -r mapa _site/mapa; fi
 
-    - name: Upravení mapy pro lepší zoom a odzoom (příklad)
+    - name: Commit a Push historie statistik (jednou denně)
       run: |
-        sed -i 's/initialZoomLevel=.*;/initialZoomLevel=5;/' _site/mapa/index.html
-        sed -i 's/minZoomLevel=.*;/minZoomLevel=1;/' _site/mapa/index.html
-        sed -i 's/maxZoomLevel=.*;/maxZoomLevel=20;/' _site/mapa/index.html
+        if [ "$(date -u +%H)" -ge 23 ]; then
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add stats_history/
+          git commit -m "Update historie statistik" || echo "Žádné nové snímky statistik"
+          git pull --rebase --autostash origin main
+          git push origin main
+        else
+          echo "Historii commitujeme jen ve 23 UTC, přeskakuji."
+        fi
 
-    - name: Přidání nových stránek pro všechny statistiky a zajímavé insighty
-      run: |
-        echo '<html><head><title>Všechny Statistiky Minecraftu</title></head><body>' > _site/all-stats.html
-        echo '<h1>Všechny Statistiky Minecraftu</h1>' >> _site/all-stats.html
-        echo '<p>Tady budou zobrazovány všechny dostupné statistiky ze hry.</p>' >> _site/all-stats.html
-        echo '</body></html>' >> _site/all-stats.html
-
-        echo '<html><head><title>Zajímavé Insighty</title></head><body>' > _site/interesting-insights.html
-        echo '<h1>Zajímavé Insighty</h1>' >> _site/interesting-insights.html
-        echo '<p>Tady budou zobrazovány zajímavé analýzy a výběry z statistik, například kdo nejvíce koopal v přepočtu na hodiny.</p>' >> _site/interesting-insights.html
-        echo '</body></html>' >> _site/interesting-insights.html
-
-    - name: Commit a Push nového obsahu
+    - name: Commit a Push aktualizované mapy
       run: |
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
-        git add -A
-        git commit -m "Update statistik a mapy" || echo "Žádné změny k nahrání"
+        git add -A mapa/
+        git commit -m "Update mapy světa" || echo "Žádné změny k nahrání"
         git pull --rebase origin main
         git push origin main
 
@@ -88,5 +85,22 @@ jobs:
       id: deployment
       uses: actions/deploy-pages@v4
 
-    - name: Logování URL nasazené stránky
-      run: echo "Deployed to ${{ steps.deployment.outputs.page_url }}"
+  update-map-zoom:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repozitáře
+      uses: actions/checkout@v4
+
+    - name: Update map zoom
+      run: |
+        sed -i 's/<iframe id="map-frame" data-src="mapa\/index.html" title="World map"><\/iframe>/<iframe id="map-frame" data-src="mapa\/index.html" title="World map" style="zoom:2.0"><\/iframe>/g' _site/index.html
+
+    - name: Commit a Push updated map
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        git add _site/
+        git commit -m "Update map zoom" || echo "No changes to commit"
+        git pull --rebase origin main
+        git push origin main
