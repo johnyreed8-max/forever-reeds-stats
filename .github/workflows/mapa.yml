@@ -63,15 +63,15 @@ jobs:
       run: |
         rm -rf mapa
         mkdir -p mapa
-        "$UNMINED_BIN" web render --help | head -n 40 || true
         "$UNMINED_BIN" web render \
           --world="$PWD/mc_world" \
           --output="$PWD/mapa" \
           --dimension=overworld \
           --imageformat=webp \
           --shadows=3d \
-          --zoomout=3
-        ls -la mapa | head
+          --zoomout=5 \
+          --zoomin=3
+        du -sh mapa
 
     - name: Commit a Push aktualizované mapy
       run: |
