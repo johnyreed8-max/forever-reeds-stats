@@ -29,9 +29,17 @@ jobs:
       run: |
         wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/players/stats/*.json" --no-directories --accept="*.json" -P "stats" -q
 
-    - name: Spuštění kompilace do HTML
+    - name: Spuštění kompilace do HTML (s automatickou opravou syntaxe)
       shell: pwsh
       run: |
+        # Automatické ošetření slitých řádků a chybějících mezer z copy-paste
+        (Get-Content ./generator.ps1 -Raw) `
+          -replace '\$hraciData14Days = @\(\)\$snapshotTodayData = @\{\}', "`$hraciData14Days = @()`n`$snapshotTodayData = @{}" `
+          -replace 'in\$crafted', 'in $crafted' `
+          -replace 'in\$mined', 'in $mined' `
+          -replace 'in\$json', 'in $json' `
+          | Set-Content ./generator.ps1
+
         ./generator.ps1
 
     # NOVÝ KROK: Uložení snímku historie statistik do Gitu
