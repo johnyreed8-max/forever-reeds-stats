@@ -140,15 +140,14 @@ $statsFiles | ForEach-Object {
 # Uložíme dnešní snapshot
 $todayStr = (Get-Date).ToString("yyyy-MM-dd")
 $todaySnapshotFile = "$historyFolder/stats_$todayStr.json"
-$snapshotTodayData \vert{} ConvertTo-Json -Depth 5 \vert{} Set-Content -Path$todaySnapshotFile -Encoding utf8
-
+$snapshotTodayData | ConvertTo-Json -Depth 5 | Set-Content -Path $todaySnapshotFile -Encoding utf8
 # Sorting
 $serazeniAllTime =$hraciDataAllTime | Sort-Object Hours -Descending
 
 # --- HTML Table Builder ---
 function Build-TableContent ($listHraci,$tHours, $tDeaths,$tDamage, $tMobKills,$tDragon, $tWither,$tMined, $tPlaced,$tDia, $tDebris,$tDist, $tJumps,$tCrafted, $tTraded,$tBred, $tTalked) {$out = "<table>"
     $out += "<tr><th class='stat-name'>Statistic</th>"
-    $listHraci \vert{} ForEach-Object {$out += "<th class='player-header'>$($_.Nickname)</th>" }
+    $listHraci | ForEach-Object {$out += "<th class='player-header'>$($_.Nickname)</th>" }
     $out += "<th class='server-total'>SERVER TOTAL</th></tr>"
 
     $AddRow = {
@@ -156,9 +155,9 @@ function Build-TableContent ($listHraci,$tHours, $tDeaths,$tDamage, $tMobKills,$
         $evalProperty = if ($sortProperty -ne "") { $sortProperty } else {$property }
 
         $values = if ($lowerWins) {
-            $listHraci \vert{} Select-Object -ExpandProperty$evalProperty | Sort-Object
+            $listHraci | Select-Object -ExpandProperty$evalProperty | Sort-Object
         } else {
-            $listHraci \vert{} Select-Object -ExpandProperty$evalProperty | Sort-Object -Descending
+            $listHraci | Select-Object -ExpandProperty$evalProperty | Sort-Object -Descending
         }
 
         $top1 =$values[0]; $top2 =$values[1]; $top3 =$values[2]
