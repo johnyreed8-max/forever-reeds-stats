@@ -364,7 +364,7 @@ $finalHtml = @"
     <div id="world-map" class="tab-content">
        <div id="world-map" class="tab-content" style="width: 100%; height: 80vh;">
     <iframe src="mapa/index.html" style="width: 100%; height: 100%; border: none; border-radius: 8px;"></iframe>
-       </div>
+</div>
     </div>
 </body>
 </html>
