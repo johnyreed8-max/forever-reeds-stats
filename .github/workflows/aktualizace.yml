@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # DŮLEŽITÉ: Povolení zápisu do repozitáře pro uložení historie
   pages: write
   id-token: write
 
@@ -23,7 +23,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Příprava složky pro statistiky
-      run: mkdir -p stats
+      run: mkdir -p stats stats_history
 
     - name: Stažení statistik z Hostify FTP
       run: |
@@ -33,6 +33,16 @@ jobs:
       shell: pwsh
       run: |
         ./generator.ps1
+
+    # NOVÝ KROK: Uložení snímku historie statistik do Gitu
+    - name: Commit a Push historie statistik
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        
+        git add stats_history/
+        git commit -m "Update historie statistik [skip ci]" || echo "Žádné nové snímky statistik"
+        git push origin main
 
     - name: Nastavení GitHub Pages prostředí
       uses: actions/configure-pages@v5
