@@ -44,7 +44,7 @@ jobs:
         echo "--- Počet stažených Overworld .mca souborů ---"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Generování efektivní 2D mapy
+    - name: Generování interaktivní mapy (Leaflet)
       shell: python
       run: |
         import os
@@ -56,12 +56,11 @@ jobs:
         output_path = "mapa/index.html"
         img_output = "mapa/map.png"
 
-        print("Analyzuji regiony a generuji mapu světa...")
+        print("Generuji podklad pro interaktivní mapu...")
         mca_files = [f for f in os.listdir(region_dir) if f.endswith(".mca")]
         
         if not mca_files:
             print("Žádné .mca soubory nebyly nalezeny!")
-            # Vytvoříme fallback obrázek, ať web nehlásí chybu 404
             img = Image.new("RGB", (1024, 1024), color=(20, 20, 20))
             img.save(img_output)
             exit(0)
@@ -83,18 +82,14 @@ jobs:
         reg_w = max_x - min_x + 1
         reg_h = max_z - min_z + 1
 
-        # 1 pixel = 2 chunky pro maximální rychlost a plynulost
-        scale_w = reg_w * 16
-        scale_h = reg_h * 16
+        scale_w = reg_w * 32
+        scale_h = reg_h * 32
 
-        world_img = Image.new("RGB", (scale_w, scale_h), color=(30, 30, 30))
+        world_img = Image.new("RGB", (scale_w, scale_h), color=(25, 25, 25))
         pixels = world_img.load()
 
-        # Jednoduché barvy terénu
-        C_GRASS = (86, 125, 70)
-        C_WATER = (40, 90, 160)
-        C_SAND = (210, 200, 150)
-        C_STONE = (110, 110, 110)
+        C_LAND = (86, 125, 70)
+        C_WATER = (35, 90, 155)
 
         for filename in mca_files:
             p = filename.split('.')
@@ -106,8 +101,8 @@ jobs:
                 continue
 
             filepath = os.path.join(region_dir, filename)
-            base_px = (rx - min_x) * 16
-            base_pz = (rz - min_z) * 16
+            base_px = (rx - min_x) * 32
+            base_pz = (rz - min_z) * 32
 
             try:
                 with open(filepath, "rb") as f:
@@ -124,38 +119,72 @@ jobs:
                             compression = f.read(1)[0]
                             data = f.read(length - 1)
 
-                            if compression == 2: # Zlib
+                            if compression == 2:
                                 try:
-                                    decompressed = zlib.decompress(data)
-                                    # Pokud chunk existuje, obarvíme příslušný pixel v mřížce
-                                    px = base_px + (cx // 2)
-                                    pz = base_pz + (cz // 2)
+                                    px = base_px + cx
+                                    pz = base_pz + cz
                                     if 0 <= px < scale_w and 0 <= pz < scale_h:
-                                        pixels[px, pz] = C_GRASS
+                                        if length < 1500:
+                                            pixels[px, pz] = C_WATER
+                                        else:
+                                            pixels[px, pz] = C_LAND
                                 except Exception:
                                     pass
-            except Exception as e:
-                print(f"Chyba při zpracování {filename}: {e}")
+            except Exception:
+                pass
 
         os.makedirs("mapa", exist_ok=True)
         world_img.save(img_output)
 
-        # Vygenerování čisté HTML stránky
+        # Interaktivní HTML šablona s Leaflet.js (styl Chunkbase / Google Maps)
         html_content = """<!DOCTYPE html>
         <html lang="cs">
         <head>
             <meta charset="UTF-8">
-            <title>Forever Reeds Map</title>
+            <title>Forever Reeds - Interaktivní Mapa</title>
+            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
             <style>
-                body { margin: 0; background: #111; color: #fff; font-family: sans-serif; overflow: hidden; }
-                #map-container { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
-                img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+                body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #111; font-family: sans-serif; }
+                #map { width: 100%; height: 100%; background: #1a1a1a; }
+                .leaflet-container { background: #1a1a1a !important; }
+                .coord-box {
+                    position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7);
+                    color: #fff; padding: 6px 12px; border-radius: 4px; font-size: 14px; z-index: 1000;
+                    border: 1px solid #444; pointer-events: none;
+                }
             </style>
         </head>
         <body>
-            <div id="map-container">
-                <img src="map.png" alt="Minecraft World Map">
-            </div>
+            <div id="map"></div>
+            <div class="coord-box" id="coord-view">Souřadnice: X: 0, Z: 0</div>
+
+            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+            <script>
+                // Inicializace mapy v souřadnicovém systému Pixelů
+                var map = L.map('map', {
+                    crs: L.CRS.Simple,
+                    minZoom: -2,
+                    maxZoom: 4,
+                    zoomControl: false
+                });
+
+                L.control.zoom({ position: 'topright' }).addTo(map);
+
+                var bounds = [[0, 0], [""" + str(scale_h) + """, """ + str(scale_w) + """]];
+                var image = L.imageOverlay('map.png', bounds).addTo(map);
+
+                map.setView([ """ + str(scale_h // 2) + """, """ + str(scale_w // 2) + """ ], 0);
+
+                // Dynamické sledování kurzoru a výpis Minecraft souřadnic
+                var minX = """ + str(min_x * 512) + """;
+                var minZ = """ + str(min_z * 512) + """;
+
+                map.on('mousemove', function(e) {
+                    var x = Math.round(e.latlng.lng + minX);
+                    var z = Math.round(e.latlng.lat + minZ);
+                    document.getElementById('coord-view').innerHTML = "X: " + x + " | Z: " + z;
+                });
+            </script>
         </body>
         </html>
         """
@@ -163,7 +192,7 @@ jobs:
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
-        print("Mapa byla úspěšně vygenerována!")
+        print("Interaktivní mapa byla úspěšně vygenerována!")
 
     - name: Commit a Push aktualizované mapy
       run: |
