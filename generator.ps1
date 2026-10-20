@@ -116,8 +116,8 @@ $template = @'
 <style>
   :root {
     --bg: #12151b; --panel: #1a1f28; --panel-2: #212835; --line: #2b3342;
-    --text: #e7ecf3; --muted: #8d99ab; --emerald: #3ddc97;
-    --gold: #f4c95d; --silver: #c4ccd8; --bronze: #d99a6c;
+    --text: #c4ccd8; --muted: #8d99ab; --emerald: #3ddc97;
+    --gold: #f4c95d; --silver: #e7ecf3; --bronze: #d99a6c;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; overflow: hidden; }
