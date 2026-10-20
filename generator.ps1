@@ -164,9 +164,6 @@ function Add-StatRow ($label, $property, $formatSuffix = "", $serverValue = "", 
 
 # Append statistics rows
 $html += Add-StatRow "Time Played" "TimePlayedText" "" $totalHours $false "Hours"
-
-# OPRAVENÉ VOLÁNÍ (odstraněno nesprávné předávání $true k přepínači)
-$html += Add-StatRow "Time Played" "TimePlayedText" "" $totalHours $false "Hours"
 $html += Add-StatRow "Deaths" "Deaths" "" $totalDeaths $true # U úmrtí chceme nejméně (proto $true)
 $html += Add-StatRow "Time Since Last Death" "SinceDeathHours" "hrs" "" $false "SinceDeathHours" # Zde je $false, protože největší číslo vyhrává!
 $html += Add-StatRow "Damage Dealt (HP)" "DamageDealt" "" $totalDamageDealt
