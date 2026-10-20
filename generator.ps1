@@ -62,23 +62,30 @@ $statsFiles | ForEach-Object {
         } 
     }
     
-    $walk = if ($custom.'minecraft:walk_one_cm') { $custom.'minecraft:walk_one_cm' } else { 0 }$sprint = if ($custom.'minecraft:sprint_one_cm') {$custom.'minecraft:sprint_one_cm' } else { 0 }
-    $distanceKm = [Math]::Round(($walk + $sprint) / 100 / 1000, 1)$blocksMined = 0
-    if ($mined) {$mined.psobject.Properties | ForEach-Object { 
-            $blocksMined +=$_.Value 
+    $walk = if ($custom.'minecraft:walk_one_cm') { $custom.'minecraft:walk_one_cm' } else { 0 }
+    $sprint = if ($custom.'minecraft:sprint_one_cm') { $custom.'minecraft:sprint_one_cm' } else { 0 }
+    $distanceKm = [Math]::Round(($walk + $sprint) / 100 / 1000, 1)
+    
+    $blocksMined = 0
+    if ($mined) { 
+        $mined.psobject.Properties | ForEach-Object { 
+            $blocksMined += $_.Value 
         } 
     }
     
     $blocksPlaced = 0
-    if ($json.stats.'minecraft:used') {$json.stats.'minecraft:used'.psobject.Properties | ForEach-Object { 
+    if ($json.stats.'minecraft:used') { 
+        $json.stats.'minecraft:used'.psobject.Properties | ForEach-Object { 
             if ($_.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { 
-                $blocksPlaced +=$_.Value 
+                $blocksPlaced += $_.Value 
             } 
         } 
     }
     
-    $diamondOre = if ($mined.'minecraft:diamond_ore') { $mined.'minecraft:diamond_ore' } else { 0 }$deepslateDiamondOre = if ($mined.'minecraft:deepslate_diamond_ore') {$mined.'minecraft:deepslate_diamond_ore' } else { 0 }
-    $totalPlayerDiamonds =$diamondOre + $deepslateDiamondOre$ancientDebris = if ($mined.'minecraft:ancient_debris') {$mined.'minecraft:ancient_debris' } else { 0 }
+    $diamondOre = if ($mined.'minecraft:diamond_ore') { $mined.'minecraft:diamond_ore' } else { 0 }
+    $deepslateDiamondOre = if ($mined.'minecraft:deepslate_diamond_ore') { $mined.'minecraft:deepslate_diamond_ore' } else { 0 }
+    $totalPlayerDiamonds = $diamondOre + $deepslateDiamondOre
+    $ancientDebris = if ($mined.'minecraft:ancient_debris') { $mined.'minecraft:ancient_debris' } else { 0 }
     
     # Save current raw values for future snapshot
     $snapshotTodayData[$nickname] = @{
