@@ -22,7 +22,14 @@ jobs:
     - name: Checkout repozitáře
       uses: actions/checkout@v4
 
-    - name: Spuštění kompilace statistik do HTML
+    - name: Příprava složky pro statistiky
+      run: mkdir -p stats
+
+    - name: Stažení statistik z Hostify FTP
+      run: |
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/players/stats/*.json" --no-directories --accept="*.json" -P "stats" -q
+
+    - name: Spuštění kompilace do HTML
       shell: pwsh
       run: |
         ./generator.ps1
