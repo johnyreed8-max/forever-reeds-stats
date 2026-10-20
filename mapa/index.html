@@ -23,7 +23,7 @@
         var map = L.map('map', {
             crs: L.CRS.Simple,
             minZoom: -2,
-            maxZoom: 4,
+            maxZoom: 5,
             zoomControl: false
         });
 
@@ -38,6 +38,7 @@
         L.imageOverlay('map.png', bounds).addTo(map);
         map.setView([scaleH / 2, scaleW / 2], 0);
 
+        // Převod pixelů na reálné Minecraft souřadnice při pohybu myši
         map.on('mousemove', function(e) {
             var mcX = Math.round((e.latlng.lng * 16) + (minRegionX * 512));
             var mcZ = Math.round((e.latlng.lat * 16) + (minRegionZ * 512));
