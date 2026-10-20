@@ -21,12 +21,26 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y lftp
 
-    - name: Stažení uNmINeD CLI
+        - name: Stažení uNmINeD CLI
       run: |
         mkdir -p unmined
-        curl -L -o unmined.tar.gz "https://unmined.net/download/unmined-cli-linux-x64-dev/"
-        tar -xzf unmined.tar.gz -C unmined
-        UNMINED_BIN=$(find unmined -type f -name "unmined-cli" | head -n 1)
+        curl -fL \
+          -A "Mozilla/5.0" \
+          -e "https://unmined.net/downloads/" \
+          -o unmined.gz \
+          "https://unmined.net/download/unmined-cli-linux-x64-dev/?tmstv=1791238577"
+
+        ls -la unmined.gz
+        file unmined.gz
+
+        # soubor je buď tar.gz, nebo čistý gzip s binárkou
+        if tar -tzf unmined.gz >/dev/null 2>&1; then
+          tar -xzf unmined.gz -C unmined
+        else
+          gunzip -c unmined.gz > unmined/unmined-cli
+        fi
+
+        UNMINED_BIN=$(find unmined -type f -name "unmined-cli*" | head -n 1)
         chmod +x "$UNMINED_BIN"
         echo "UNMINED_BIN=$PWD/$UNMINED_BIN" >> $GITHUB_ENV
         "$UNMINED_BIN" --version || true
