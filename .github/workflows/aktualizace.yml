@@ -1,0 +1,77 @@
+name: Minecraft Stats Auto Updater
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Checkout repozitáře
+      uses: actions/checkout@v4
+
+    - name: Příprava složky pro statistiky
+      run: mkdir -p stats stats_history
+
+    - name: Stažení statistik z Hostify FTP
+      run: |
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+          "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/players/stats/*.json" \
+          --no-directories --accept="*.json" -P "stats" -nv
+
+        count=$(find stats -name '*.json' | wc -l)
+        echo "Staženo souborů: $count"
+        if [ "$count" -eq 0 ]; then
+          echo "::error::Nepodařilo se stáhnout žádné statistiky, web se nepřepisuje."
+          exit 1
+        fi
+
+    - name: Spuštění kompilace do HTML
+      shell: pwsh
+      run: ./generator.ps1
+
+    - name: Sestavení složky webu
+      run: |
+        mkdir -p _site
+        cp index.html _site/
+        if [ -d mapa ]; then cp -r mapa _site/mapa; fi
+
+    - name: Commit a Push historie statistik (jednou denně)
+      run: |
+        if [ "$(date -u +%H)" -ge 23 ]; then
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add stats_history/
+          git commit -m "Update historie statistik" || echo "Žádné nové snímky statistik"
+          git pull --rebase --autostash origin main
+          git push origin main
+        else
+          echo "Historii commitujeme jen ve 23 UTC, přeskakuji."
+        fi
+
+    - name: Nastavení GitHub Pages prostředí
+      uses: actions/configure-pages@v5
+
+    - name: Nahrání vygenerovaného webu jako artefakt
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '_site'
+
+    - name: Nasazení na GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
