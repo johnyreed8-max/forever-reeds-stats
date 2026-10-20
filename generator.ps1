@@ -208,6 +208,29 @@ function Build-TableContent ($listHraci, $tHours, $tDeaths, $tDamage, $tMobKills
     return $out
 }
 
+function GenerateInterestingFactsPage {
+    # Example: Create the HTML content for the interesting facts page.
+    $interestingFactsHtml = @"
+<html>
+<head><title>Interesting Minecraft Facts</title></head>
+<body>
+<h1>Interesting Minecraft Facts</h1>
+<ul>
+  <li>User with most deaths: {DEATHS_USER}</li>
+  <li>User with most mob kills: {MOB_KILLS_USER}</li>
+  <!-- Add more interesting facts here -->
+</ul>
+</body>
+</html>
+"@
+
+    # Replace placeholders with actual data from your statistics.
+    $interestingFactsHtml = $interestingFactsHtml.Replace("{DEATHS_USER}", "Player1")
+    $interestingFactsHtml = $interestingFactsHtml.Replace("{MOB_KILLS_USER}", "Player2")
+
+    return $interestingFactsHtml
+}
+
 # --- UNIVERZÁLNÍ FUNKCE PRO VÝPOČET DELTY ZA URČITÝ POČET DNÍ ---
 function Get-DeltaStatsForDays($days) {
     $targetDateStr = (Get-Date).AddDays(-$days).ToString("yyyy-MM-dd");
