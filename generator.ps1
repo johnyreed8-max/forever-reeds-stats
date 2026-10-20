@@ -345,11 +345,11 @@ $finalHtml = @"
 
     <!-- Skupina tlačítek -->
     <div class="tab-buttons">
-        <button class="tab-btn active" onclick="showTab('stats-all', this)">Celá doba 🏆</button>
-        <button class="tab-btn" onclick="showTab('stats-month', this)">Měsíc 📅</button>
-        <button class="tab-btn" onclick="showTab('stats-week', this)">Týden 📊</button>
-        <button class="tab-btn" onclick="showTab('stats-day', this)">Den ⚡</button>
-        <button class="tab-btn" onclick="showTab('world-map', this)">Mapa světa 🗺️</button>
+        <button class="tab-btn active" onclick="showTab('stats-all', this)">Lifetime 🏆</button>
+        <button class="tab-btn" onclick="showTab('stats-month', this)">Month 📅</button>
+        <button class="tab-btn" onclick="showTab('stats-week', this)">Week 📊</button>
+        <button class="tab-btn" onclick="showTab('stats-day', this)">Day ⚡</button>
+        <button class="tab-btn" onclick="showTab('world-map', this)">World Map 🗺️</button>
     </div>
 
     <!-- Obsah pro Celou dobu -->
