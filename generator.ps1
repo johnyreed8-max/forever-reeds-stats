@@ -1,7 +1,7 @@
 # Safety check: If stats & history folders do not exist, create them
 if (-not (Test-Path "stats")) { New-Item -ItemType Directory -Path "stats" | Out-Null }
 $historyFolder = "stats_history"
-if (-not (Test-Path $historyFolder)) { New-Item -ItemType Directory -Path $historyFolder | Out-Null }
+if (-not (Test-Path $historyFolder)) { New-Item -ItemType Directory -Path$historyFolder | Out-Null }
 
 # Ensure correct time formatting
 $currentDateTime = (Get-Date).ToUniversalTime().AddHours(2).ToString("dd.MM.yyyy HH:mm:ss")
@@ -17,124 +17,68 @@ $jmena = @{
     'bd265486-b561-4510-860c-76a0bc9ea3ae' = 'ettelwen'
 }
 
-# --- NAČTENÍ STATISTIK ZA POSLEDNÍCH 14 DNÍ ---
-$todayStr = (Get-Date).ToString("yyyy-MM-dd")
-$todaySnapshotFile = "$historyFolder/stats_$todayStr.json"
-$fourteenDaysAgo = (Get-Date).AddDays(-14)
-$fourteenDaysAgoStr = $fourteenDaysAgo.ToString("yyyy-MM-dd")
-
-# 1. Zkusíme najít snapshot starý přesně 14 dní (nebo nejbližší starší)
-$oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction SilentlyContinue | 
-    Where-Object { $_.BaseName -le "stats_$fourteenDaysAgoStr" } | 
-    Sort-Object Name -Descending | Select-Object -First 1
-
-# 2. Pokud 14 dní starý soubor není, vezmeme vůbec ten nejstarší, jaký v historii máme (pro rozjezd)
-if (-not $oldSnapshotFile) {
-    $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction SilentlyContinue | 
-        Sort-Object Name | Select-Object -First 1
-}
-
-# Určení reálného data "od" pro zobrazení v HTML
-$periodStartDate = if ($oldSnapshotFile) { 
-    # Vytáhneme datum z názvu souboru stats_YYYY-MM-DD.json
-    $datePart = $oldSnapshotFile.BaseName.Replace("stats_", "")
-    [DateTime]::ParseExact($datePart, "yyyy-MM-dd", $null).ToString("dd.MM.yyyy")
-} else {
-    (Get-Date).ToString("dd.MM.yyyy") # Pokud historie není, začíná to dnes
-}
-$periodEndDate = (Get-Date).ToString("dd.MM.yyyy")
-
-$oldStatsData = @{}
-if ($oldSnapshotFile) {
-    $rawOld = Get-Content $oldSnapshotFile.FullName -Raw | ConvertFrom-Json
-    $rawOld.psobject.Properties | ForEach-Object {
-        $oldStatsData[$_.Name] = $_.Value
-    }
-}
 # --- NAČTENÍ AKTUÁLNÍCH STATISTIK ---
-$hraciDataAllTime = @()
-$hraciData14Days = @(); $snapshotTodayData = @{}
+$hraciDataAllTime = @()$snapshotTodayData = @{}
 
 # Global totals All-Time
 $totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalTalked = 0;
 $totalDamageDealt = 0; $totalDamageTaken = 0; $totalDiamonds = 0; $totalDebris = 0; $totalJumps = 0;
 $totalDragonKills = 0; $totalWitherKills = 0; $totalCrafted = 0; $totalBred = 0;
 
-# Global totals 14 Days
-$totalHours14 = 0; $totalDeaths14 = 0; $totalMobKills14 = 0; $totalMined14 = 0; $totalPlaced14 = 0; $totalTraded14 = 0; $totalDistance14 = 0; $totalTalked14 = 0;
-$totalDamageDealt14 = 0; $totalDamageTaken14 = 0; $totalDiamonds14 = 0; $totalDebris14 = 0; $totalJumps14 = 0;
-$totalDragonKills14 = 0; $totalWitherKills14 = 0; $totalCrafted14 = 0; $totalBred14 = 0;
-
 $statsFiles = Get-ChildItem 'stats/*.json' -ErrorAction SilentlyContinue
 
 $statsFiles | ForEach-Object {
-    $file = $_
-    $uuid = $file.BaseName
-    $nickname = if ($jmena.Contains($uuid)) { $jmena[$uuid] } else { $uuid }
-    $json = Get-Content $file.FullName -Raw | ConvertFrom-Json
-    $custom = $json.stats.'minecraft:custom'
-    $mined = $json.stats.'minecraft:mined'
-    $killed = $json.stats.'minecraft:killed'
-    $crafted = $json.stats.'minecraft:crafted'
+    $file =$_
+    $uuid =$file.BaseName
+    $nickname = if ($jmena.Contains($uuid)) {$jmena[$uuid] } else {$uuid }
+    $json = Get-Content$file.FullName -Raw | ConvertFrom-Json
+    $custom =$json.stats.'minecraft:custom'
+    $mined =$json.stats.'minecraft:mined'
+    $killed =$json.stats.'minecraft:killed'
+    $crafted =$json.stats.'minecraft:crafted'
     
     # Raw values
     $ticks = 0
     if ($custom.'minecraft:play_time') { 
-        $ticks = $custom.'minecraft:play_time' 
+        $ticks =$custom.'minecraft:play_time' 
     } elseif ($custom.'minecraft:play_one_minute') { 
-        $ticks = $custom.'minecraft:play_one_minute' 
+        $ticks =$custom.'minecraft:play_one_minute' 
     }
     
     $hours = [Math]::Round($ticks / 20 / 60 / 60, 1)
     $days = [Math]::Round($hours / 24, 1)
     $timePlayedText = "$hours hrs / $days days"
 
-    $deaths = if ($custom.'minecraft:deaths') { $custom.'minecraft:deaths' } else { 0 }
-    $sinceDeathTicks = if ($custom.'minecraft:time_since_death') { $custom.'minecraft:time_since_death' } else { 0 }
+    $deaths = if ($custom.'minecraft:deaths') { $custom.'minecraft:deaths' } else { 0 }$sinceDeathTicks = if ($custom.'minecraft:time_since_death') {$custom.'minecraft:time_since_death' } else { 0 }
     $sinceDeathHours = [Math]::Round($sinceDeathTicks / 20 / 60 / 60, 1)
     
-    $damageDealt = if ($custom.'minecraft:damage_dealt') { [Math]::Round($custom.'minecraft:damage_dealt' / 10, 0) } else { 0 }
-    $damageTaken = if ($custom.'minecraft:damage_taken') { [Math]::Round($custom.'minecraft:damage_taken' / 10, 0) } else { 0 }
-    $mobKills = if ($custom.'minecraft:mob_kills') { $custom.'minecraft:mob_kills' } else { 0 }
-    $dragonKills = if ($killed.'minecraft:ender_dragon') { $killed.'minecraft:ender_dragon' } else { 0 }
-    $witherKills = if ($killed.'minecraft:wither') { $killed.'minecraft:wither' } else { 0 }
-    
-    $talked = if ($custom.'minecraft:talked_to_villager') { $custom.'minecraft:talked_to_villager' } else { 0 }
-    $traded = if ($custom.'minecraft:traded_with_villager') { $custom.'minecraft:traded_with_villager' } else { 0 }
-    $jumps = if ($custom.'minecraft:jump') { $custom.'minecraft:jump' } else { 0 }
-    $animalsBred = if ($custom.'minecraft:animals_bred') { $custom.'minecraft:animals_bred' } else { 0 }
-    
-    $totalPlayerCrafted = 0
-    if ($crafted) { 
-        $crafted.psobject.Properties | ForEach-Object { 
-            $totalPlayerCrafted += $_.Value 
+    $damageDealt = if ($custom.'minecraft:damage_dealt') { [Math]::Round($custom.'minecraft:damage_dealt' / 10, 0) } else { 0 }$damageTaken = if ($custom.'minecraft:damage_taken') { [Math]::Round($custom.'minecraft:damage_taken' / 10, 0) } else { 0 }
+    $mobKills = if ($custom.'minecraft:mob_kills') { $custom.'minecraft:mob_kills' } else { 0 }$dragonKills = if ($killed.'minecraft:ender_dragon') {$killed.'minecraft:ender_dragon' } else { 0 }
+    $witherKills = if ($killed.'minecraft:wither') { $killed.'minecraft:wither' } else { 0 }$talked = if ($custom.'minecraft:talked_to_villager') {$custom.'minecraft:talked_to_villager' } else { 0 }
+    $traded = if ($custom.'minecraft:traded_with_villager') { $custom.'minecraft:traded_with_villager' } else { 0 }$jumps = if ($custom.'minecraft:jump') {$custom.'minecraft:jump' } else { 0 }
+    $animalsBred = if ($custom.'minecraft:animals_bred') { $custom.'minecraft:animals_bred' } else { 0 }$totalPlayerCrafted = 0
+    if ($crafted) {$crafted.psobject.Properties | ForEach-Object { 
+            $totalPlayerCrafted +=$_.Value 
         } 
     }
     
-    $walk = if ($custom.'minecraft:walk_one_cm') { $custom.'minecraft:walk_one_cm' } else { 0 }
-    $sprint = if ($custom.'minecraft:sprint_one_cm') { $custom.'minecraft:sprint_one_cm' } else { 0 }
-    $distanceKm = [Math]::Round(($walk + $sprint) / 100 / 1000, 1)
-    
-    $blocksMined = 0
-    if ($mined) { 
-        $mined.psobject.Properties | ForEach-Object { 
-            $blocksMined += $_.Value 
+    $walk = if ($custom.'minecraft:walk_one_cm') { $custom.'minecraft:walk_one_cm' } else { 0 }$sprint = if ($custom.'minecraft:sprint_one_cm') {$custom.'minecraft:sprint_one_cm' } else { 0 }
+    $distanceKm = [Math]::Round(($walk + $sprint) / 100 / 1000, 1)$blocksMined = 0
+    if ($mined) {$mined.psobject.Properties | ForEach-Object { 
+            $blocksMined +=$_.Value 
         } 
     }
     
     $blocksPlaced = 0
-    if ($json.stats.'minecraft:used') { 
-        $json.stats.'minecraft:used'.psobject.Properties | ForEach-Object { 
+    if ($json.stats.'minecraft:used') {$json.stats.'minecraft:used'.psobject.Properties | ForEach-Object { 
             if ($_.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { 
-                $blocksPlaced += $_.Value 
+                $blocksPlaced +=$_.Value 
             } 
         } 
     }
     
-    $diamondOre = if ($mined.'minecraft:diamond_ore') { $mined.'minecraft:diamond_ore' } else { 0 }
-    $deepslateDiamondOre = if ($mined.'minecraft:deepslate_diamond_ore') { $mined.'minecraft:deepslate_diamond_ore' } else { 0 }
-    $totalPlayerDiamonds = $diamondOre + $deepslateDiamondOre
-    $ancientDebris = if ($mined.'minecraft:ancient_debris') { $mined.'minecraft:ancient_debris' } else { 0 }
+    $diamondOre = if ($mined.'minecraft:diamond_ore') { $mined.'minecraft:diamond_ore' } else { 0 }$deepslateDiamondOre = if ($mined.'minecraft:deepslate_diamond_ore') {$mined.'minecraft:deepslate_diamond_ore' } else { 0 }
+    $totalPlayerDiamonds =$diamondOre + $deepslateDiamondOre$ancientDebris = if ($mined.'minecraft:ancient_debris') {$mined.'minecraft:ancient_debris' } else { 0 }
     
     # Save current raw values for future snapshot
     $snapshotTodayData[$nickname] = @{
@@ -158,9 +102,9 @@ $statsFiles | ForEach-Object {
     }
 
     # Cumulative totals
-    $totalHours += $hours; $totalDeaths += $deaths; $totalMobKills += $mobKills; $totalMined += $blocksMined; $totalPlaced += $blocksPlaced; $totalTraded += $traded; $totalDistance += $distanceKm; $totalTalked += $talked
-    $totalDamageDealt += $damageDealt; $totalDamageTaken += $damageTaken; $totalDiamonds += $totalPlayerDiamonds; $totalDebris += $ancientDebris; $totalJumps += $jumps
-    $totalDragonKills += $dragonKills; $totalWitherKills += $witherKills; $totalCrafted += $totalPlayerCrafted; $totalBred += $animalsBred
+    $totalHours +=$hours; $totalDeaths +=$deaths; $totalMobKills +=$mobKills; $totalMined +=$blocksMined; $totalPlaced +=$blocksPlaced; $totalTraded +=$traded; $totalDistance +=$distanceKm; $totalTalked +=$talked
+    $totalDamageDealt +=$damageDealt; $totalDamageTaken +=$damageTaken; $totalDiamonds +=$totalPlayerDiamonds; $totalDebris +=$ancientDebris; $totalJumps +=$jumps
+    $totalDragonKills +=$dragonKills; $totalWitherKills +=$witherKills; $totalCrafted +=$totalPlayerCrafted; $totalBred +=$animalsBred
 
     $hraciDataAllTime += [PSCustomObject]@{
         Nickname = $nickname
@@ -184,80 +128,33 @@ $statsFiles | ForEach-Object {
         Bred = $animalsBred
         Talked = $talked
     }
-
-    # 14-day Delta Calculation
-    $old = if ($oldStatsData.ContainsKey($nickname)) { $oldStatsData[$nickname] } else { $null }
-    $h14 = if ($old) { [Math]::Max(0, [Math]::Round($hours - $old.Hours, 1)) } else { $hours }
-    $d14 = [Math]::Round($h14 / 24, 1)
-    $t14 = "$h14 hrs / $d14 days"
-
-    $dt14 = if ($old) { [Math]::Max(0, $deaths - $old.Deaths) } else { $deaths }
-    $dd14 = if ($old) { [Math]::Max(0, $damageDealt - $old.DamageDealt) } else { $damageDealt }
-    $mk14 = if ($old) { [Math]::Max(0, $mobKills - $old.MobKills) } else { $mobKills }
-    $dk14 = if ($old) { [Math]::Max(0, $dragonKills - $old.DragonKills) } else { $dragonKills }
-    $wk14 = if ($old) { [Math]::Max(0, $witherKills - $old.WitherKills) } else { $witherKills }
-    $bm14 = if ($old) { [Math]::Max(0, $blocksMined - $old.BlocksMined) } else { $blocksMined }
-    $bp14 = if ($old) { [Math]::Max(0, $blocksPlaced - $old.BlocksPlaced) } else { $blocksPlaced }
-    $dia14 = if ($old) { [Math]::Max(0, $totalPlayerDiamonds - $old.Diamonds) } else { $totalPlayerDiamonds }
-    $deb14 = if ($old) { [Math]::Max(0, $ancientDebris - $old.Debris) } else { $ancientDebris }
-    $dist14 = if ($old) { [Math]::Max(0, [Math]::Round($distanceKm - $old.Distance, 1)) } else { $distanceKm }
-    $j14 = if ($old) { [Math]::Max(0, $jumps - $old.Jumps) } else { $jumps }
-    $cr14 = if ($old) { [Math]::Max(0, $totalPlayerCrafted - $old.Crafted) } else { $totalPlayerCrafted }
-    $tr14 = if ($old) { [Math]::Max(0, $traded - $old.Traded) } else { $traded }
-    $br14 = if ($old) { [Math]::Max(0, $animalsBred - $old.Bred) } else { $animalsBred }
-    $tk14 = if ($old) { [Math]::Max(0, $talked - $old.Talked) } else { $talked }
-
-    $totalHours14 += $h14; $totalDeaths14 += $dt14; $totalMobKills14 += $mk14; $totalMined14 += $bm14; $totalPlaced14 += $bp14; $totalTraded14 += $tr14; $totalDistance14 += $dist14; $totalTalked14 += $tk14
-    $totalDamageDealt14 += $dd14; $totalDiamonds14 += $dia14; $totalDebris14 += $deb14; $totalJumps14 += $j14; $totalDragonKills14 += $dk14; $totalWitherKills14 += $wk14; $totalCrafted14 += $cr14; $totalBred14 += $br14
-
-    $hraciData14Days += [PSCustomObject]@{
-        Nickname = $nickname
-        Hours = $h14
-        TimePlayedText = $t14
-        Deaths = $dt14
-        SinceDeathHours = $sinceDeathHours
-        DamageDealt = $dd14
-        MobKills = $mk14
-        DragonKills = $dk14
-        WitherKills = $wk14
-        BlocksMined = $bm14
-        BlocksPlaced = $bp14
-        Diamonds = $dia14
-        Debris = $deb14
-        Distance = $dist14
-        Jumps = $j14
-        Crafted = $cr14
-        Traded = $tr14
-        Bred = $br14
-        Talked = $tk14
-    }
 }
 
-# Save today's snapshot
-$snapshotTodayData | ConvertTo-Json -Depth 5 | Set-Content -Path $todaySnapshotFile -Encoding utf8
+# Uložíme dnešní snapshot
+$todayStr = (Get-Date).ToString("yyyy-MM-dd")
+$todaySnapshotFile = "$historyFolder/stats_$todayStr.json"
+$snapshotTodayData \vert{} ConvertTo-Json -Depth 5 \vert{} Set-Content -Path$todaySnapshotFile -Encoding utf8
 
 # Sorting
-$serazeniAllTime = $hraciDataAllTime | Sort-Object Hours -Descending
-$serazeni14Days = $hraciData14Days | Sort-Object Hours -Descending
+$serazeniAllTime =$hraciDataAllTime | Sort-Object Hours -Descending
 
-# HTML Table Builder
-function Build-TableContent ($listHraci, $tHours, $tDeaths, $tDamage, $tMobKills, $tDragon, $tWither, $tMined, $tPlaced, $tDia, $tDebris, $tDist, $tJumps, $tCrafted, $tTraded, $tBred, $tTalked) {
-    $out = "<table>"
+# --- HTML Table Builder ---
+function Build-TableContent ($listHraci,$tHours, $tDeaths,$tDamage, $tMobKills,$tDragon, $tWither,$tMined, $tPlaced,$tDia, $tDebris,$tDist, $tJumps,$tCrafted, $tTraded,$tBred, $tTalked) {$out = "<table>"
     $out += "<tr><th class='stat-name'>Statistic</th>"
-    $listHraci | ForEach-Object { $out += "<th class='player-header'>$($_.Nickname)</th>" }
+    $listHraci \vert{} ForEach-Object {$out += "<th class='player-header'>$($_.Nickname)</th>" }
     $out += "<th class='server-total'>SERVER TOTAL</th></tr>"
 
     $AddRow = {
-        param($label, $property, $formatSuffix = "", $serverValue = "", $lowerWins = $false, $sortProperty = "")
-        $evalProperty = if ($sortProperty -ne "") { $sortProperty } else { $property }
+        param($label, $property,$formatSuffix = "", $serverValue = "", $lowerWins = $false,$sortProperty = "")
+        $evalProperty = if ($sortProperty -ne "") { $sortProperty } else {$property }
 
         $values = if ($lowerWins) {
-            $listHraci | Select-Object -ExpandProperty $evalProperty | Sort-Object
+            $listHraci \vert{} Select-Object -ExpandProperty$evalProperty | Sort-Object
         } else {
-            $listHraci | Select-Object -ExpandProperty $evalProperty | Sort-Object -Descending
+            $listHraci \vert{} Select-Object -ExpandProperty$evalProperty | Sort-Object -Descending
         }
 
-        $top1 = $values[0]; $top2 = $values[1]; $top3 = $values[2]
+        $top1 =$values[0]; $top2 =$values[1]; $top3 =$values[2]
 
         $row = "<tr><td class='stat-name'>$label</td>"
         $listHraci | ForEach-Object {
@@ -302,8 +199,89 @@ function Build-TableContent ($listHraci, $tHours, $tDeaths, $tDamage, $tMobKills
     return $out
 }
 
+# --- UNIVERZÁLNÍ FUNKCE PRO VÝPOČET DELTY ZA URČITÝ POČET DNÍ ---
+function Get-DeltaStatsForDays($days) {
+    $targetDateStr = (Get-Date).AddDays(-$days).ToString("yyyy-MM-dd")
+
+    # Najdeme starší snapshot
+    $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction SilentlyContinue | 
+        Where-Object { $_.BaseName -le "stats_$targetDateStr" } | 
+        Sort-Object Name -Descending | Select-Object -First 1
+
+    if (-not $oldSnapshotFile) {
+        $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction SilentlyContinue | 
+            Sort-Object Name | Select-Object -First 1
+    }
+
+    $oldStatsData = @{}
+    if ($oldSnapshotFile) {
+        $rawOld = Get-Content $oldSnapshotFile.FullName -Raw | ConvertFrom-Json
+        $rawOld.psobject.Properties | ForEach-Object { $oldStatsData[$_.Name] = $_.Value }
+    }
+
+    $listDelta = @()
+    $totH=0; $totD=0; $totDMG=0; $totMK=0; $totDK=0; $totWK=0; $totBM=0; $totBP=0; $totDIA=0; $totDEB=0; $totDIST=0; $totJ=0; $totCR=0; $totTR=0; $totBR=0; $totTK=0;
+
+    foreach ($hrac in $hraciDataAllTime) {
+        $nickname = $hrac.Nickname
+        $old = if ($oldStatsData.ContainsKey($nickname)) { $oldStatsData[$nickname] } else { $null }
+
+        $h = if ($old) { [Math]::Max(0, [Math]::Round($hrac.Hours - $old.Hours, 1)) } else { $hrac.Hours }
+        $d = [Math]::Round($h / 24, 1)
+        $t = "$h hrs / $d days"
+
+        $dt = if ($old) { [Math]::Max(0, $hrac.Deaths - $old.Deaths) } else { $hrac.Deaths }
+        $dd = if ($old) { [Math]::Max(0, $hrac.DamageDealt - $old.DamageDealt) } else { $hrac.DamageDealt }
+        $mk = if ($old) { [Math]::Max(0, $hrac.MobKills - $old.MobKills) } else { $hrac.MobKills }
+        $dk = if ($old) { [Math]::Max(0, $hrac.DragonKills - $old.DragonKills) } else { $hrac.DragonKills }
+        $wk = if ($old) { [Math]::Max(0, $hrac.WitherKills - $old.WitherKills) } else { $hrac.WitherKills }
+        $bm = if ($old) { [Math]::Max(0, $hrac.BlocksMined - $old.BlocksMined) } else { $hrac.BlocksMined }
+        $bp = if ($old) { [Math]::Max(0, $hrac.BlocksPlaced - $old.BlocksPlaced) } else { $hrac.BlocksPlaced }
+        $dia = if ($old) { [Math]::Max(0, $hrac.Diamonds - $old.Diamonds) } else { $hrac.Diamonds }
+        $deb = if ($old) { [Math]::Max(0, $hrac.Debris - $old.Debris) } else { $hrac.Debris }
+        $dist = if ($old) { [Math]::Max(0, [Math]::Round($hrac.Distance - $old.Distance, 1)) } else { $hrac.Distance }
+        $j = if ($old) { [Math]::Max(0, $hrac.Jumps - $old.Jumps) } else { $hrac.Jumps }
+        $cr = if ($old) { [Math]::Max(0, $hrac.Crafted - $old.Crafted) } else { $hrac.Crafted }
+        $tr = if ($old) { [Math]::Max(0, $hrac.Traded - $old.Traded) } else { $hrac.Traded }
+        $br = if ($old) { [Math]::Max(0, $hrac.Bred - $old.Bred) } else { $hrac.Bred }
+        $tk = if ($old) { [Math]::Max(0, $hrac.Talked - $old.Talked) } else { $hrac.Talked }
+
+        $totH += $h; $totD += $dt; $totDMG += $dd; $totMK += $mk; $totDK += $dk; $totWK += $wk; $totBM += $bm; $totBP += $bp;
+        $totDIA += $dia; $totDEB += $deb; $totDIST += $dist; $totJ += $j; $totCR += $cr; $totTR += $tr; $totBR += $br; $totTK += $tk;
+
+        $listDelta += [PSCustomObject]@{
+            Nickname = $nickname
+            Hours = $h
+            TimePlayedText = $t
+            Deaths = $dt
+            SinceDeathHours = $hrac.SinceDeathHours
+            DamageDealt = $dd
+            MobKills = $mk
+            DragonKills = $dk
+            WitherKills = $wk
+            BlocksMined = $bm
+            BlocksPlaced = $bp
+            Diamonds = $dia
+            Debris = $deb
+            Distance = $dist
+            Jumps = $j
+            Crafted = $cr
+            Traded = $tr
+            Bred = $br
+            Talked = $tk
+        }
+    }
+
+    $sortedDelta = $listDelta | Sort-Object Hours -Descending
+    $tableHtml = Build-TableContent $sortedDelta $totH $totD $totDMG $totMK $totDK $totWK $totBM $totBP $totDIA $totDEB $totDIST $totJ $totCR $totTR $totBR $totTK
+    return $tableHtml
+}
+
+# --- GENERACE TABULEK PRO VŠECHNA OBDOBÍ ---
 $tableAllTimeHtml = Build-TableContent $serazeniAllTime $totalHours $totalDeaths $totalDamageDealt $totalMobKills $totalDragonKills $totalWitherKills $totalMined $totalPlaced $totalDiamonds $totalDebris $totalDistance $totalJumps $totalCrafted $totalTraded $totalBred $totalTalked
-$table14DaysHtml = Build-TableContent $serazeni14Days $totalHours14 $totalDeaths14 $totalDamageDealt14 $totalMobKills14 $totalDragonKills14 $totalWitherKills14 $totalMined14 $totalPlaced14 $totalDiamonds14 $totalDebris14 $totalDistance14 $totalJumps14 $totalCrafted14 $totalTraded14 $totalBred14 $totalTalked14
+$tableMonthHtml   = Get-DeltaStatsForDays 30
+$tableWeekHtml    = Get-DeltaStatsForDays 7
+$tableDayHtml     = Get-DeltaStatsForDays 1
 
 # --- FINAL HTML ASSEMBLY ---
 $finalHtml = @"
@@ -317,7 +295,7 @@ $finalHtml = @"
         h1 { color: #5cff5c; margin-bottom: 5px; }
         .update-time { color: #aaa; font-size: 0.9em; margin-bottom: 25px; border-bottom: 2px solid #444; padding-bottom: 15px; }
         
-        .tab-buttons { display: flex; gap: 12px; margin-bottom: 20px; }
+        .tab-buttons { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
         .tab-btn { background: #2e2e2e; color: #aaa; border: 2px solid #444; padding: 10px 24px; cursor: pointer; border-radius: 6px; font-weight: bold; font-size: 1em; transition: 0.2s; }
         .tab-btn:hover { background: #383838; color: #fff; }
         .tab-btn.active { background: #4CAF50; color: white; border-color: #4CAF50; }
@@ -335,67 +313,64 @@ $finalHtml = @"
         .player-header { font-weight: bold; text-align: left; }
     </style>
     <script>
-function showTab(tabId, btn) {
-    // Schovat všechny záložky
-    document.querySelectorAll('.tab-content').forEach(function(content) {
-        content.classList.remove('active');
-        content.style.display = 'none';
-    });
+    function showTab(tabId, btn) {
+        document.querySelectorAll('.tab-content').forEach(function(content) {
+            content.classList.remove('active');
+            content.style.display = 'none';
+        });
 
-    // Zrušit aktivní stav všech tlačítek
-    document.querySelectorAll('.tab-btn').forEach(function(button) {
-        button.classList.remove('active');
-    });
+        document.querySelectorAll('.tab-btn').forEach(function(button) {
+            button.classList.remove('active');
+        });
 
-    // Zobrazit vybranou záložku a aktivovat tlačítko
-    var target = document.getElementById(tabId);
-    if (target) {
-        target.classList.add('active');
-        target.style.display = (tabId === 'world-map') ? 'block' : 'block'; // nebo 'block' dle tvých CSS tříd
+        var target = document.getElementById(tabId);
+        if (target) {
+            target.classList.add('active');
+            target.style.display = 'block';
+        }
+        if (btn) {
+            btn.classList.add('active');
+        }
     }
-    if (btn) {
-        btn.classList.add('active');
-    }
-}
-</script>
+    </script>
 </head>
 <body>
     <h1>Forever Reeds MC Server</h1>
     <div class='update-time'>Last updated: $currentDateTime</div>
 
-<!-- Skupina tlačítek -->
-<div class="tab-buttons" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
-    <button class="tab-btn active" onclick="showTab('stats-all', this)">Celá doba 🏆</button>
-    <button class="tab-btn" onclick="showTab('stats-month', this)">Měsíc 📅</button>
-    <button class="tab-btn" onclick="showTab('stats-week', this)">Týden 📊</button>
-    <button class="tab-btn" onclick="showTab('stats-day', this)">Den ⚡</button>
-    <button class="tab-btn" onclick="showTab('world-map', this)">Mapa světa 🗺️</button>
-</div>
+    <!-- Skupina tlačítek -->
+    <div class="tab-buttons">
+        <button class="tab-btn active" onclick="showTab('stats-all', this)">Celá doba 🏆</button>
+        <button class="tab-btn" onclick="showTab('stats-month', this)">Měsíc 📅</button>
+        <button class="tab-btn" onclick="showTab('stats-week', this)">Týden 📊</button>
+        <button class="tab-btn" onclick="showTab('stats-day', this)">Den ⚡</button>
+        <button class="tab-btn" onclick="showTab('world-map', this)">Mapa světa 🗺️</button>
+    </div>
 
-<!-- Obsah pro Celou dobu -->
-<div id="stats-all" class="tab-content active">
-    $tableAllTimeHtml
-</div>
+    <!-- Obsah pro Celou dobu -->
+    <div id="stats-all" class="tab-content active">
+        $tableAllTimeHtml
+    </div>
 
-<!-- Obsah pro Měsíc -->
-<div id="stats-month" class="tab-content" style="display: none;">
-    $tableMonthHtml
-</div>
+    <!-- Obsah pro Měsíc -->
+    <div id="stats-month" class="tab-content">
+        $tableMonthHtml
+    </div>
 
-<!-- Obsah pro Týden -->
-<div id="stats-week" class="tab-content" style="display: none;">
-    $tableWeekHtml
-</div>
+    <!-- Obsah pro Týden -->
+    <div id="stats-week" class="tab-content">
+        $tableWeekHtml
+    </div>
 
-<!-- Obsah pro Den -->
-<div id="stats-day" class="tab-content" style="display: none;">
-    $tableDayHtml
-</div>
+    <!-- Obsah pro Den -->
+    <div id="stats-day" class="tab-content">
+        $tableDayHtml
+    </div>
 
-<!-- Obsah pro Mapu světa -->
-<div id="world-map" class="tab-content" style="display: none; width: 100%; height: 80vh;">
-    <iframe src="mapa/index.html" style="width: 100%; height: 100%; border: none; border-radius: 8px;"></iframe>
-</div>
+    <!-- Obsah pro Mapu světa -->
+    <div id="world-map" class="tab-content" style="width: 100%; height: 80vh;">
+        <iframe src="mapa/index.html" style="width: 100%; height: 100%; border: none; border-radius: 8px;"></iframe>
+    </div>
 </body>
 </html>
 "@
