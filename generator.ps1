@@ -362,9 +362,9 @@ $finalHtml = @"
     </div>
 
     <div id="world-map" class="tab-content">
-        <div style='width: 100%; border: 1px solid #444; border-radius: 8px; overflow: hidden; background: #111;'>
-            <img src='mapa/map.png' alt='World Map' style='width: 100%; height: auto; display: block;'>
-        </div>
+       <div id="world-map" class="tab-content" style="width: 100%; height: 80vh;">
+    <iframe src="mapa/index.html" style="width: 100%; height: 100%; border: none; border-radius: 8px;"></iframe>
+       </div>
     </div>
 </body>
 </html>
