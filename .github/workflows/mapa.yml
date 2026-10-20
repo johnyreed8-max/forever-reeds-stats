@@ -62,7 +62,6 @@ jobs:
       env:
         DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
       run: |
-        # Pozdější vylepšení: smaž následující řádek, ať se renderují jen změněné dlaždice
         rm -rf mapa
         mkdir -p mapa
         "$UNMINED_BIN" web render \
@@ -75,10 +74,20 @@ jobs:
         du -sh mapa
         find mapa -type f | wc -l
 
-    - name: Výpis nastavení viewera
+    - name: Přiblížení v prohlížeči (bez dalšího renderu)
       run: |
-        ls -la mapa | head -30
-        grep -rn -i "maxzoom\|minzoom\|resolutions\|zoom" mapa --include=*.js --include=*.html | cut -c1-220 | head -40
+        sed -i \
+          -e 's|resolutions: tileGrid.getResolutions(),|resolutions: (function (r) { var l = r[r.length - 1]; return r.concat([l / 2, l / 4, l / 8]); })(tileGrid.getResolutions()),|' \
+          -e 's|maxZoom: mapZoomLevels,|maxZoom: mapZoomLevels + 3,|' \
+          mapa/unmined.js
+
+        if grep -q "l / 8" mapa/unmined.js && grep -q "maxZoom: mapZoomLevels + 3," mapa/unmined.js; then
+          echo "Patch zoomu aplikován"
+        else
+          echo "::warning::Patch zoomu se nepodařilo aplikovat"
+        fi
+
+        sed -n '245,305p' mapa/unmined.js | cut -c1-200
 
     - name: Commit a Push aktualizované mapy
       run: |
