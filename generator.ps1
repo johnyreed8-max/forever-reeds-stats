@@ -209,9 +209,6 @@ function Build-TableContent ($listHraci, $tHours, $tDeaths, $tDamage, $tMobKills
 }
 
 
-
-}
-
 # --- UNIVERZÁLNÍ FUNKCE PRO VÝPOČET DELTY ZA URČITÝ POČET DNÍ ---
 function Get-DeltaStatsForDays($days) {
     $targetDateStr = (Get-Date).AddDays(-$days).ToString("yyyy-MM-dd");
