@@ -347,9 +347,10 @@ $finalHtml = @"
     <h1>Player Statistics — Forever Reeds</h1>
     <div class='update-time'>Last updated: $currentDateTime</div>
 
-    <div class="tab-buttons">
+<div class="tab-buttons">
         <button class="tab-btn active" onclick="showTab('all-time', this)">Celá doba 🏆</button>
-        <button class="tab-btn" onclick="showTab('fourteen-days', this)">Posledních 14 dní ($periodStartDate - $periodEndDate) 📅</button>
+        <button class="tab-btn" onclick="showTab('fourteen-days', this)">Posledných 14 dní ($periodStartDate - $periodEndDate) 📅</button>
+        <button class="tab-btn" onclick="showTab('world-map', this)">Mapa sveta 🗺️</button>
     </div>
 
     <div id="all-time" class="tab-content active">
@@ -360,10 +361,10 @@ $finalHtml = @"
         $table14DaysHtml
     </div>
 
-<h2 style='color: #5cff5c; margin-top: 40px;'>World Map</h2>
-    <div style='width: 100%; border: 1px solid #444; border-radius: 8px; overflow: hidden; background: #111;'>
-        <img src='mapa/map.png' alt='World Map' style='width: 100%; height: auto; display: block;'>
-    </div>
+    <div id="world-map" class="tab-content">
+        <div style='width: 100%; border: 1px solid #444; border-radius: 8px; overflow: hidden; background: #111;'>
+            <img src='mapa/map.png' alt='World Map' style='width: 100%; height: auto; display: block;'>
+        </div>
     </div>
 </body>
 </html>
