@@ -2,7 +2,7 @@ name: Automatická aktualizace mapy světa
 
 on:
   schedule:
-    - cron: '0 3 1,15 * *' # 1. a 15. den v měsíci ve 3:00 ráno
+    - cron: '0 3 1,15 * *'
   workflow_dispatch:
 
 permissions:
@@ -16,175 +16,55 @@ jobs:
     - name: Checkout repozitáře
       uses: actions/checkout@v4
 
-    - name: Instalace Pythonu a lftp
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Instalace lftp a Pillow
+    - name: Instalace lftp
       run: |
         sudo apt-get update
         sudo apt-get install -y lftp
-        pip install Pillow
 
-    - name: Vytvoření adresářové struktury
+    - name: Stažení uNmINeD CLI
       run: |
-        mkdir -p mc_world/region
-        mkdir -p mapa
+        mkdir -p unmined
+        curl -L -o unmined.tar.gz "https://unmined.net/download/unmined-cli-linux-x64-dev/"
+        tar -xzf unmined.tar.gz -C unmined
+        UNMINED_BIN=$(find unmined -type f -name "unmined-cli" | head -n 1)
+        chmod +x "$UNMINED_BIN"
+        echo "UNMINED_BIN=$PWD/$UNMINED_BIN" >> $GITHUB_ENV
+        "$UNMINED_BIN" --version || true
 
-    - name: Stažení regionů z Hostify FTP
+    - name: Stažení světa z Hostify FTP
       run: |
-        echo "Stahuji regiony Overworldu v 10 paralelních vláknech..."
+        mkdir -p mc_world/dimensions/minecraft/overworld/region
         lftp -c "open ftp://ftp.hostify.cz:21; \
                  user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
                  set net:timeout 30; \
                  set net:max-retries 10; \
-                 mirror --continue --parallel=10 '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region' './mc_world/region'"
+                 get -O ./mc_world '/minecraft/Forever Reeds/world/level.dat'; \
+                 mirror --continue --parallel=10 '/minecraft/Forever Reeds/world/dimensions/minecraft/overworld/region' './mc_world/dimensions/minecraft/overworld/region'"
 
-        echo "--- Počet stažených Overworld .mca souborů ---"
-        find ./mc_world/region/ -name "*.mca" | wc -l
+        echo "--- Počet stažených .mca souborů ---"
+        find ./mc_world -name "*.mca" | wc -l
 
-    - name: Generování Leaflet mapy s Fog of War
-      shell: python
+    - name: Render mapy (uNmINeD)
+      env:
+        DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "1"
       run: |
-        import os
-        from PIL import Image
-        import struct
-
-        region_dir = "mc_world/region"
-        output_path = "mapa/index.html"
-        img_output = "mapa/map.png"
-
-        print("Generuji Leaflet mapu světa...")
-        mca_files = [f for f in os.listdir(region_dir) if f.endswith(".mca")]
-        
-        if not mca_files:
-            print("Žádné .mca soubory nenalezeny!")
-            img = Image.new("RGB", (1024, 1024), color=(18, 18, 18))
-            img.save(img_output)
-            exit(0)
-
-        coords = []
-        for f in mca_files:
-            p = f.split('.')
-            if len(p) >= 3:
-                try:
-                    coords.append((int(p[1]), int(p[2])))
-                except ValueError:
-                    pass
-
-        min_x = min(c[0] for c in coords)
-        max_x = max(c[0] for c in coords)
-        min_z = min(c[1] for c in coords)
-        max_z = max(c[1] for c in coords)
-
-        reg_w = max_x - min_x + 1
-        reg_h = max_z - min_z + 1
-
-        # 1 pixel = 1 chunk (16x16 bloků)
-        scale_w = reg_w * 32
-        scale_h = reg_h * 32
-
-        # Tmavé pozadí pro neprozkoumanou oblast (Fog of War)
-        world_img = Image.new("RGB", (scale_w, scale_h), color=(18, 18, 18))
-        pixels = world_img.load()
-
-        # Barva pro odhalené chunky (stylová Minecraft zeleň / terén)
-        C_EXPLORED = (76, 115, 53)
-
-        for filename in mca_files:
-            p = filename.split('.')
-            if len(p) < 3:
-                continue
-            try:
-                rx, rz = int(p[1]), int(p[2])
-            except ValueError:
-                continue
-
-            filepath = os.path.join(region_dir, filename)
-            base_px = (rx - min_x) * 32
-            base_pz = (rz - min_z) * 32
-
-            try:
-                with open(filepath, "rb") as f:
-                    header = f.read(8192)
-                    for cx in range(32):
-                        for cz in range(32):
-                            i = (cx + cz * 32) * 4
-                            offset = struct.unpack(">I", b'\x00' + header[i:i+3])[0]
-                            if offset != 0:
-                                px = base_px + cx
-                                pz = base_pz + cz
-                                if 0 <= px < scale_w and 0 <= pz < scale_h:
-                                    pixels[px, pz] = C_EXPLORED
-            except Exception:
-                pass
-
-        os.makedirs("mapa", exist_ok=True)
-        world_img.save(img_output)
-
-        # Generování interaktivní Leaflet šablony
-        html_content = f"""<!DOCTYPE html>
-        <html lang="cs">
-        <head>
-            <meta charset="UTF-8">
-            <title>Forever Reeds Mapa</title>
-            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-            <style>
-                html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #121212; font-family: sans-serif; }}
-                #map {{ width: 100%; height: 100%; background: #121212; }}
-                .coord-box {{
-                    position: absolute; bottom: 15px; right: 15px; background: rgba(0,0,0,0.85);
-                    color: #55ff55; padding: 8px 14px; border-radius: 6px; font-size: 14px; z-index: 1000;
-                    border: 1px solid #333; font-family: monospace; pointer-events: none;
-                }}
-            </style>
-        </head>
-        <body>
-            <div id="map"></div>
-            <div class="coord-box" id="coord-view">X: 0 | Z: 0</div>
-
-            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-            <script>
-                var map = L.map('map', {{
-                    crs: L.CRS.Simple,
-                    minZoom: -2,
-                    maxZoom: 5,
-                    zoomControl: false
-                }});
-
-                L.control.zoom({{ position: 'topright' }}).addTo(map);
-
-                var scaleW = {scale_w};
-                var scaleH = {scale_h};
-                var minRegionX = {min_x};
-                var minRegionZ = {min_z};
-
-                var bounds = [[0, 0], [scaleH, scaleW]];
-                L.imageOverlay('map.png', bounds).addTo(map);
-                map.setView([scaleH / 2, scaleW / 2], 0);
-
-                // Převod pixelů na reálné Minecraft souřadnice při pohybu myši
-                map.on('mousemove', function(e) {{
-                    var mcX = Math.round((e.latlng.lng * 16) + (minRegionX * 512));
-                    var mcZ = Math.round((e.latlng.lat * 16) + (minRegionZ * 512));
-                    document.getElementById('coord-view').innerText = "X: " + mcX + " | Z: " + mcZ;
-                }});
-            </script>
-        </body>
-        </html>
-        """
-        
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
-
-        print("Leaflet mapa s Fog of War byla úspěšně vygenerována!")
+        rm -rf mapa
+        mkdir -p mapa
+        "$UNMINED_BIN" web render --help | head -n 40 || true
+        "$UNMINED_BIN" web render \
+          --world="$PWD/mc_world" \
+          --output="$PWD/mapa" \
+          --dimension=overworld \
+          --imageformat=webp \
+          --shadows=3d \
+          --zoomout=3
+        ls -la mapa | head
 
     - name: Commit a Push aktualizované mapy
       run: |
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
-        
         git add -A mapa/
         git commit -m "Update mapy světa" || echo "Žádné změny k nahrání"
+        git pull --rebase origin main
         git push origin main
