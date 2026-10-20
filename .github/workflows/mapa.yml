@@ -44,23 +44,23 @@ jobs:
         echo "--- Počet stažených Overworld .mca souborů ---"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Generování interaktivní mapy světa
+    - name: Generování Leaflet mapy s Fog of War
       shell: python
       run: |
         import os
-        from PIL import Image, ImageDraw
+        from PIL import Image
         import struct
 
         region_dir = "mc_world/region"
         output_path = "mapa/index.html"
         img_output = "mapa/map.png"
 
-        print("Zpracovávám regiony Minecraftu...")
+        print("Generuji Leaflet mapu světa...")
         mca_files = [f for f in os.listdir(region_dir) if f.endswith(".mca")]
-
+        
         if not mca_files:
-            print("Žádné regiony nenalezeny!")
-            img = Image.new("RGB", (800, 800), color=(20, 20, 20))
+            print("Žádné .mca soubory nenalezeny!")
+            img = Image.new("RGB", (1024, 1024), color=(18, 18, 18))
             img.save(img_output)
             exit(0)
 
@@ -73,22 +73,24 @@ jobs:
                 except ValueError:
                     pass
 
-        min_x, max_x = min(c[0] for c in coords), max(c[0] for c in coords)
-        min_z, max_z = min(c[1] for c in coords), max(c[1] for c in coords)
+        min_x = min(c[0] for c in coords)
+        max_x = max(c[0] for c in coords)
+        min_z = min(c[1] for c in coords)
+        max_z = max(c[1] for c in coords)
 
         reg_w = max_x - min_x + 1
         reg_h = max_z - min_z + 1
 
-        # 32 pixelů na region (1 px = 1 chunk)
+        # 1 pixel = 1 chunk (16x16 bloků)
         scale_w = reg_w * 32
         scale_h = reg_h * 32
 
-        world_img = Image.new("RGB", (scale_w, scale_h), color=(24, 28, 20))
-        draw = ImageDraw.Draw(world_img)
+        # Tmavé pozadí pro neprozkoumanou oblast (Fog of War)
+        world_img = Image.new("RGB", (scale_w, scale_h), color=(18, 18, 18))
+        pixels = world_img.load()
 
-        # Barva obydleného/vygenerovaného terénu
-        COLOR_CHUNK = (76, 115, 53)
-        COLOR_GRID = (60, 90, 42)
+        # Barva pro odhalené chunky (stylová Minecraft zeleň / terén)
+        C_EXPLORED = (76, 115, 53)
 
         for filename in mca_files:
             p = filename.split('.')
@@ -113,14 +115,15 @@ jobs:
                             if offset != 0:
                                 px = base_px + cx
                                 pz = base_pz + cz
-                                world_img.putpixel((px, pz), COLOR_CHUNK)
-            except Exception as e:
+                                if 0 <= px < scale_w and 0 <= pz < scale_h:
+                                    pixels[px, pz] = C_EXPLORED
+            except Exception:
                 pass
 
         os.makedirs("mapa", exist_ok=True)
         world_img.save(img_output)
 
-        # Generování kompletní Leaflet appky
+        # Generování interaktivní Leaflet šablony
         html_content = f"""<!DOCTYPE html>
         <html lang="cs">
         <head>
@@ -146,7 +149,7 @@ jobs:
                 var map = L.map('map', {{
                     crs: L.CRS.Simple,
                     minZoom: -2,
-                    maxZoom: 4,
+                    maxZoom: 5,
                     zoomControl: false
                 }});
 
@@ -161,6 +164,7 @@ jobs:
                 L.imageOverlay('map.png', bounds).addTo(map);
                 map.setView([scaleH / 2, scaleW / 2], 0);
 
+                // Převod pixelů na reálné Minecraft souřadnice při pohybu myši
                 map.on('mousemove', function(e) {{
                     var mcX = Math.round((e.latlng.lng * 16) + (minRegionX * 512));
                     var mcZ = Math.round((e.latlng.lat * 16) + (minRegionZ * 512));
@@ -170,11 +174,11 @@ jobs:
         </body>
         </html>
         """
-
+        
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
-        print("Mapa byla úspěšně vygenerována!")
+        print("Leaflet mapa s Fog of War byla úspěšně vygenerována!")
 
     - name: Commit a Push aktualizované mapy
       run: |
