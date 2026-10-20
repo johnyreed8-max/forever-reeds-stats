@@ -35,7 +35,8 @@ if ($oldSnapshotFile) {
 
 # --- NAČTENÍ AKTUÁLNÍCH STATISTIK ---
 $hraciDataAllTime = @()
-$hraciData14Days = @()$snapshotTodayData = @{}
+$hraciData14Days = @()
+$snapshotTodayData = @{}
 
 # Global totals All-Time
 $totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalTalked = 0;
