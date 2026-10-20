@@ -1,9 +1,9 @@
-name: Automatická aktualizace mapy světa
+name: Automatická aktualizace mapy světa (PapyrusCS)
 
 on:
   schedule:
-    - cron: '0 3 1,15 * *' # Spustí se automaticky 1. a 15. den v měsíci ve 3:00 ráno
-  workflow_dispatch:      # Umožňuje ruční spuštění jedním klikem v záložce Actions
+    - cron: '0 3 1,15 * *' # 1. a 15. den v měsíci ve 3:00 ráno
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,59 +16,44 @@ jobs:
     - name: Checkout repozitáře
       uses: actions/checkout@v4
 
-    - name: Vytvoření správné struktury složek
+    - name: Instalace .NET SDK a lftp
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Instalace lftp
+      run: sudo apt-get update && sudo apt-get install -y lftp
+
+    - name: Vytvoření adresářové struktury
       run: |
-        mkdir -p mc_world/dimensions/minecraft/overworld/region
         mkdir -p mc_world/region
         mkdir -p mapa
 
-    - name: Instalace lftp pro spolehlivé stahování
-      run: sudo apt-get update && sudo apt-get install -y lftp
-
-    - name: Stažení komplet světa z Hostify FTP
+    - name: Stažení regionů z Hostify FTP
       run: |
         echo "Stahuji level.dat..."
         wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
              "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/world/level.dat" \
              -O "./mc_world/level.dat" || true
 
-        echo "Stahuji kompletní regiony přes lftp (včetně všech dimenzí)..."
+        echo "Stahuji pouze hlavní Overworld regiony..."
         lftp -c "open ftp://ftp.hostify.cz:21; \
                  user ${{ secrets.FTP_USER }} ${{ secrets.FTP_PASSWORD }}; \
                  set net:timeout 60; \
                  set net:max-retries 20; \
                  set ftp:list-options -a; \
-                 mirror --continue --verbose '/minecraft/Forever Reeds/world/region' './mc_world/region'; \
-                 mirror --continue --verbose '/minecraft/Forever Reeds/world/dimensions' './mc_world/dimensions'"
+                 mirror --continue --verbose '/minecraft/Forever Reeds/world/region' './mc_world/region'"
 
-        echo "--- Celkový počet stažených .mca souborů ---"
-        find ./mc_world/ -name "*.mca" | wc -l
+        echo "--- Počet stažených .mca souborů ---"
+        find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Generování MinedMap
+    - name: Instalace a spuštění PapyrusCS
       run: |
-        wget -O minedmap.zip https://github.com/neocturne/MinedMap/releases/latest/download/MinedMap-2.8.0-x86_64-unknown-linux-gnu.zip
-        unzip -qo minedmap.zip
-        find . -name "minedmap" -type f -exec mv {} ./minedmap \;
-        chmod +x ./minedmap
-        
-        # Vygenerování do dočasné složky raw_map
-        ./minedmap mc_world raw_map -j 4
+        echo "Instaluji PapyrusCS CLI..."
+        dotnet tool install -g PapyrusCS || dotnet tool update -g PapyrusCS
 
-        # Příprava struktury pro viewer
-        rm -rf mapa
-        mkdir -p mapa/data
-
-        mv raw_map/info.json mapa/data/
-        mv raw_map/entities.json mapa/data/ || true
-        mv raw_map/light mapa/data/ || true
-        mv raw_map/map mapa/data/ || true
-        mv raw_map/processed mapa/data/ || true
-        rm -rf raw_map
-
-        # Stažení oficiálního vieweru
-        git clone https://github.com/neocturne/MinedMap.git minedmap-repo
-        cp -r minedmap-repo/viewer/* mapa/
-        rm -rf minedmap-repo
+        echo "Generuji mapu pomocí PapyrusCS..."
+        papyruscs -w ./mc_world -o ./mapa --dim 0 -f png
 
     - name: Nahrání aktualizované mapy na GitHub
       run: |
@@ -76,5 +61,5 @@ jobs:
         git config --global user.email "action@github.com"
         
         git add -A mapa/
-        git commit -m "Automatický update kompletní mapy světa" || echo "Žádné změny"
+        git commit -m "Update mapy světa přes PapyrusCS" || echo "Žádné změny k nahrání"
         git push origin main
