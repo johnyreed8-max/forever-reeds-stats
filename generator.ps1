@@ -31,7 +31,7 @@ $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction Sile
 # 2. Pokud 14 dní starý soubor není, vezmeme vůbec ten nejstarší, jaký v historii máme (pro rozjezd)
 if (-not $oldSnapshotFile) {
     $oldSnapshotFile = Get-ChildItem "$historyFolder/stats_*.json" -ErrorAction SilentlyContinue | 
-        Sort-Object Name -Ascending | Select-Object -First 1
+        Sort-Object Name | Select-Object -First 1
 }
 
 # Určení reálného data "od" pro zobrazení v HTML
