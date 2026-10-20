@@ -25,8 +25,8 @@ jobs:
     - name: Checkout repozitáře
       uses: actions/checkout@v4
 
-    - name: Příprava složek pro statistiky a mapu
-      run: mkdir -p stats stats_history mapa _site
+    - name: Příprava složky pro statistiky
+      run: mkdir -p stats stats_history
 
     - name: Stažení statistik z Hostify FTP
       run: |
@@ -45,15 +45,46 @@ jobs:
       shell: pwsh
       run: ./generator.ps1
 
+    - name: Sestavení složky webu
+      run: |
+        mkdir -p _site
+        cp index.html _site/
+        if [ -d mapa ]; then cp -r mapa _site/mapa; fi
+
+    - name: Commit a Push aktualizované mapy
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        
+        # Stash untracked files to avoid conflicts during pull with rebase
+        git stash -u
+        
+        git add -A mapa/
+        git commit -m "Update mapy světa" || echo "Žádné změny k nahrání"
+        
+        git pull --rebase origin main
+        git push origin main
+        
+        # Restore stashed files after successful pull
+        git stash pop || true
+
     - name: Commit a Push historie statistik (jednou denně)
       run: |
         if [ "$(date -u +%H)" -ge 23 ]; then
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
+          
+          # Stash untracked files to avoid conflicts during pull with rebase
+          git stash -u
+          
           git add stats_history/
           git commit -m "Update historie statistik" || echo "Žádné nové snímky statistik"
-          git pull --rebase --autostash origin main
+          
+          git pull --rebase origin main
           git push origin main
+          
+          # Restore stashed files after successful pull
+          git stash pop || true
         else
           echo "Historii commitujeme jen ve 23 UTC, přeskakuji."
         fi
@@ -69,16 +100,3 @@ jobs:
     - name: Nasazení na GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4
-
-    - name: Spuštění kompilace do HTML (druhý přístup)
-      shell: pwsh
-      run: ./generator.ps1
-
-    - name: Commit a Push aktualizované mapy (jednou denně)
-      run: |
-        git config --global user.name "GitHub Action"
-        git config --global user.email "action@github.com"
-        git add mapa/
-        git commit -m "Update mapy světa" || echo "Žádné změny k nahrání"
-        git pull --rebase origin main
-        git push origin main
