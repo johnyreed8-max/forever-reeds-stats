@@ -44,24 +44,23 @@ jobs:
         echo "--- Počet stažených Overworld .mca souborů ---"
         find ./mc_world/region/ -name "*.mca" | wc -l
 
-    - name: Generování biomy-věrné mapy
+    - name: Generování interaktivní mapy světa
       shell: python
       run: |
         import os
-        from PIL import Image
+        from PIL import Image, ImageDraw
         import struct
-        zlib = __import__('zlib')
 
         region_dir = "mc_world/region"
         output_path = "mapa/index.html"
         img_output = "mapa/map.png"
 
-        print("Generuji mapu věrnou Chunkbase podle biomů...")
+        print("Zpracovávám regiony Minecraftu...")
         mca_files = [f for f in os.listdir(region_dir) if f.endswith(".mca")]
-        
+
         if not mca_files:
-            print("Žádné .mca soubory nebyly nalezeny!")
-            img = Image.new("RGB", (1024, 1024), color=(20, 20, 20))
+            print("Žádné regiony nenalezeny!")
+            img = Image.new("RGB", (800, 800), color=(20, 20, 20))
             img.save(img_output)
             exit(0)
 
@@ -74,28 +73,22 @@ jobs:
                 except ValueError:
                     pass
 
-        min_x = min(c[0] for c in coords)
-        max_x = max(c[0] for c in coords)
-        min_z = min(c[1] for c in coords)
-        max_z = max(c[1] for c in coords)
+        min_x, max_x = min(c[0] for c in coords), max(c[0] for c in coords)
+        min_z, max_z = min(c[1] for c in coords), max(c[1] for c in coords)
 
         reg_w = max_x - min_x + 1
         reg_h = max_z - min_z + 1
 
-        # 1 pixel = 1 chunk (16x16 bloků) pro detailní zobrazení biomů
+        # 32 pixelů na region (1 px = 1 chunk)
         scale_w = reg_w * 32
         scale_h = reg_h * 32
 
-        world_img = Image.new("RGB", (scale_w, scale_h), color=(18, 18, 18))
-        pixels = world_img.load()
+        world_img = Image.new("RGB", (scale_w, scale_h), color=(24, 28, 20))
+        draw = ImageDraw.Draw(world_img)
 
-        # Chunkbase barevná paleta pro biomy/terén
-        COLOR_WATER = (43, 85, 209)     # Modrá (oceány, řeky)
-        COLOR_FOREST = (79, 115, 61)    # Tmavě zelená (lesy)
-        COLOR_PLAINS = (112, 143, 77)   # Světle zelená (pláně)
-        COLOR_DESERT = (219, 211, 142)  # Žlutá/písková (pouště, pláže)
-        COLOR_PEAK = (210, 210, 210)    # Světlá šedá/sněhová (hory)
-        COLOR_DEFAULT = (86, 125, 70)   # Výchozí zelená pro pevninu
+        # Barva obydleného/vygenerovaného terénu
+        COLOR_CHUNK = (76, 115, 53)
+        COLOR_GRID = (60, 90, 42)
 
         for filename in mca_files:
             p = filename.split('.')
@@ -117,58 +110,31 @@ jobs:
                         for cz in range(32):
                             i = (cx + cz * 32) * 4
                             offset = struct.unpack(">I", b'\x00' + header[i:i+3])[0]
-                            if offset == 0:
-                                continue
-                            
-                            f.seek(offset * 4096)
-                            length = struct.unpack(">I", f.read(4))[0]
-                            compression = f.read(1)[0]
-                            data = f.read(length - 1)
-
-                            if compression == 2:
-                                try:
-                                    decompressed = zlib.decompress(data)
-                                    px = base_px + cx
-                                    pz = base_pz + cz
-                                    
-                                    if 0 <= px < scale_w and 0 <= pz < scale_h:
-                                        # Heuristika podle velikosti a obsahu dat chunku (simulace biomů a výšky)
-                                        # Voda a hluboké oceány komprimují data jinak než členitý terén
-                                        if length < 1400:
-                                            pixels[px, pz] = COLOR_WATER
-                                        elif length > 6000:
-                                            pixels[px, pz] = COLOR_PEAK
-                                        elif length > 4000:
-                                            pixels[px, pz] = COLOR_FOREST
-                                        elif length < 2000:
-                                            pixels[px, pz] = COLOR_DESERT
-                                        else:
-                                            pixels[px, pz] = COLOR_PLAINS
-                                except Exception:
-                                    pass
-            except Exception:
+                            if offset != 0:
+                                px = base_px + cx
+                                pz = base_pz + cz
+                                world_img.putpixel((px, pz), COLOR_CHUNK)
+            except Exception as e:
                 pass
 
         os.makedirs("mapa", exist_ok=True)
         world_img.save(img_output)
 
-        # Interaktivní HTML šablona s Leaflet.js
-        html_content = """<!DOCTYPE html>
+        # Generování kompletní Leaflet appky
+        html_content = f"""<!DOCTYPE html>
         <html lang="cs">
         <head>
             <meta charset="UTF-8">
-            <title>Forever Reeds - Interaktivní Mapa</title>
+            <title>Forever Reeds Mapa</title>
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
             <style>
-                body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #121212; font-family: sans-serif; }
-                #map { width: 100%; height: 100%; background: #121212; }
-                .leaflet-container { background: #121212 !important; }
-                .coord-box {
-                    position: absolute; bottom: 15px; right: 15px; background: rgba(18, 18, 18, 0.85);
-                    color: #e0e0e0; padding: 8px 14px; border-radius: 6px; font-size: 13px; z-index: 1000;
-                    border: 1px solid #333; pointer-events: none; font-family: monospace;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-                }
+                html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #121212; font-family: sans-serif; }}
+                #map {{ width: 100%; height: 100%; background: #121212; }}
+                .coord-box {{
+                    position: absolute; bottom: 15px; right: 15px; background: rgba(0,0,0,0.85);
+                    color: #55ff55; padding: 8px 14px; border-radius: 6px; font-size: 14px; z-index: 1000;
+                    border: 1px solid #333; font-family: monospace; pointer-events: none;
+                }}
             </style>
         </head>
         <body>
@@ -177,37 +143,38 @@ jobs:
 
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
             <script>
-                var map = L.map('map', {
+                var map = L.map('map', {{
                     crs: L.CRS.Simple,
-                    minZoom: -3,
-                    maxZoom: 5,
+                    minZoom: -2,
+                    maxZoom: 4,
                     zoomControl: false
-                });
+                }});
 
-                L.control.zoom({ position: 'topright' }).addTo(map);
+                L.control.zoom({{ position: 'topright' }}).addTo(map);
 
-                var bounds = [[0, 0], [""" + str(scale_h) + """, """ + str(scale_w) + """]];
-                var image = L.imageOverlay('map.png', bounds).addTo(map);
+                var scaleW = {scale_w};
+                var scaleH = {scale_h};
+                var minRegionX = {min_x};
+                var minRegionZ = {min_z};
 
-                map.setView([ """ + str(scale_h // 2) + """, """ + str(scale_w // 2) + """ ], 0);
+                var bounds = [[0, 0], [scaleH, scaleW]];
+                L.imageOverlay('map.png', bounds).addTo(map);
+                map.setView([scaleH / 2, scaleW / 2], 0);
 
-                var minX = """ + str(min_x * 512) + """;
-                var minZ = """ + str(min_z * 512) + """;
-
-                map.on('mousemove', function(e) {
-                    var x = Math.round(e.latlng.lng + minX);
-                    var z = Math.round(e.latlng.lat + minZ);
-                    document.getElementById('coord-view').innerHTML = "X: " + x + " &nbsp;|&nbsp; Z: " + z;
-                });
+                map.on('mousemove', function(e) {{
+                    var mcX = Math.round((e.latlng.lng * 16) + (minRegionX * 512));
+                    var mcZ = Math.round((e.latlng.lat * 16) + (minRegionZ * 512));
+                    document.getElementById('coord-view').innerText = "X: " + mcX + " | Z: " + mcZ;
+                }});
             </script>
         </body>
         </html>
         """
-        
+
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
-        print("Mapa ve stylu Chunkbase byla úspěšně vygenerována!")
+        print("Mapa byla úspěšně vygenerována!")
 
     - name: Commit a Push aktualizované mapy
       run: |
