@@ -41,15 +41,15 @@ jobs:
           exit 1
         fi
 
-    - name: Spuštění kompilace do HTML
-      shell: pwsh
-      run: ./generator.ps1
-
     - name: Sestavení složky webu
       run: |
         mkdir -p _site
         cp index.html _site/
         if [ -d mapa ]; then cp -r mapa _site/mapa; fi
+
+    - name: Spuštění kompilace do HTML
+      shell: pwsh
+      run: ./generator.ps1
 
     - name: Commit a Push historie statistik (jednou denně)
       run: |
@@ -62,29 +62,6 @@ jobs:
           git push origin main
         else
           echo "Historii commitujeme jen ve 23 UTC, přeskakuji."
-        fi
-
-    - name: Commit a Push aktualizované mapy
-      run: |
-        git config --global user.name "GitHub Action"
-        git config --global user.email "action@github.com"
-        git add -A mapa/
-        git commit -m "Update mapy světa" || echo "Žádné změny k nahrání"
-        git pull --rebase origin main
-        git push origin main
-
-    - name: Update Map Zoom
-      run: |
-        if [ -f "_site/index.html" ]; then
-          sed -i 's/<iframe id="map-frame" data-src="mapa\/index.html" title="World map"><\/iframe>/<iframe id="map-frame" data-src="mapa\/index.html" title="World map" style="zoom:2.0"><\/iframe>/g' _site/index.html
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          git add _site/
-          git commit -m "Update map zoom" || echo "No changes to commit"
-          git pull --rebase origin main
-          git push origin main
-        else
-          echo "_site/index.html does not exist. Skipping update."
         fi
 
     - name: Nastavení GitHub Pages prostředí
