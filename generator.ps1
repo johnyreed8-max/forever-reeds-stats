@@ -335,36 +335,67 @@ $finalHtml = @"
         .player-header { font-weight: bold; text-align: left; }
     </style>
     <script>
-        function showTab(tabId, btn) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            btn.classList.add('active');
-        }
-    </script>
+function showTab(tabId, btn) {
+    // Schovat všechny záložky
+    document.querySelectorAll('.tab-content').forEach(function(content) {
+        content.classList.remove('active');
+        content.style.display = 'none';
+    });
+
+    // Zrušit aktivní stav všech tlačítek
+    document.querySelectorAll('.tab-btn').forEach(function(button) {
+        button.classList.remove('active');
+    });
+
+    // Zobrazit vybranou záložku a aktivovat tlačítko
+    var target = document.getElementById(tabId);
+    if (target) {
+        target.classList.add('active');
+        target.style.display = (tabId === 'world-map') ? 'block' : 'block'; // nebo 'block' dle tvých CSS tříd
+    }
+    if (btn) {
+        btn.classList.add('active');
+    }
+}
+</script>
 </head>
 <body>
     <h1>Forever Reeds MC Server</h1>
     <div class='update-time'>Last updated: $currentDateTime</div>
 
-<div class="tab-buttons">
-        <button class="tab-btn active" onclick="showTab('all-time', this)">All time 🏆</button>
-        <button class="tab-btn" onclick="showTab('fourteen-days', this)">14 days ($periodStartDate - $periodEndDate) 📅</button>
-        <button class="tab-btn" onclick="showTab('world-map', this)">World Map 🗺️</button>
-    </div>
+<!-- Skupina tlačítek -->
+<div class="tab-buttons" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+    <button class="tab-btn active" onclick="showTab('stats-all', this)">Celá doba 🏆</button>
+    <button class="tab-btn" onclick="showTab('stats-month', this)">Měsíc 📅</button>
+    <button class="tab-btn" onclick="showTab('stats-week', this)">Týden 📊</button>
+    <button class="tab-btn" onclick="showTab('stats-day', this)">Den ⚡</button>
+    <button class="tab-btn" onclick="showTab('world-map', this)">Mapa světa 🗺️</button>
+</div>
 
-    <div id="all-time" class="tab-content active">
-        $tableAllTimeHtml
-    </div>
+<!-- Obsah pro Celou dobu -->
+<div id="stats-all" class="tab-content active">
+    $tableAllTimeHtml
+</div>
 
-    <div id="fourteen-days" class="tab-content">
-        $table14DaysHtml
-    </div>
+<!-- Obsah pro Měsíc -->
+<div id="stats-month" class="tab-content" style="display: none;">
+    $tableMonthHtml
+</div>
 
-    <div id="world-map" class="tab-content" style="width: 100%; height: 80vh; display: none;">
+<!-- Obsah pro Týden -->
+<div id="stats-week" class="tab-content" style="display: none;">
+    $tableWeekHtml
+</div>
+
+<!-- Obsah pro Den -->
+<div id="stats-day" class="tab-content" style="display: none;">
+    $tableDayHtml
+</div>
+
+<!-- Obsah pro Mapu světa -->
+<div id="world-map" class="tab-content" style="display: none; width: 100%; height: 80vh;">
     <iframe src="mapa/index.html" style="width: 100%; height: 100%; border: none; border-radius: 8px;"></iframe>
 </div>
-    </div>
 </body>
 </html>
 "@
