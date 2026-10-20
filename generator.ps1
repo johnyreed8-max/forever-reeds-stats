@@ -35,7 +35,7 @@ if ($oldSnapshotFile) {
 
 # --- NAČTENÍ AKTUÁLNÍCH STATISTIK ---
 $hraciDataAllTime = @()
-$hraciData14Days = @()$snapshotTodayData = @{}
+$hraciData14Days = @();$snapshotTodayData = @{}
 
 # Global totals All-Time
 $totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalTalked = 0;
@@ -225,4 +225,23 @@ function Build-TableContent ($listHraci,$tHours, $tDeaths,$tDamage, $tMobKills,$
             if ($evalVal -ne 0 -or (-not $lowerWins -and$evalProperty -ne "Deaths")) {
                 if ($evalVal -eq $top1) {$medal = " 👑" }
                 elseif ($evalVal -eq $top2 -and$top2 -ne $top1) {$medal = " 🥈" }
-                elseif ($evalVal -eq $top3 -and$top3 -ne $top2 -and$top3 -ne
+                elseif ($evalVal -eq $top3 -and$top3 -ne $top2 -and$top3 -ne $top1) {$medal = " 🥉" }
+            }
+            $row += "<td>$formattedVal$formatSuffix$medal</td>"
+        }
+        $formattedServerVal = if ($serverValue -is [ValueType]) { $serverValue.ToString("N0", $usCulture) } else { $serverValue }$finalServerVal = if ($serverValue -ne "") { $formattedServerVal } else { "—" }
+        $row += "<td class='server-total'>$finalServerVal$formatSuffix</td></tr>"
+        return $row
+    }
+
+    $out += &$AddRow "Time Played" "TimePlayedText" "" $tHours$false "Hours"
+    $out += &$AddRow "Deaths" "Deaths" "" $tDeaths$true
+    $out += &$AddRow "Time Since Last Death" "SinceDeathHours" "hrs" "" $false "SinceDeathHours"
+    $out += &$AddRow "Damage Dealt (HP)" "DamageDealt" "" $tDamage
+    $out += &$AddRow "Mob Kills" "MobKills" "" $tMobKills
+    $out += &$AddRow "Ender Dragon Kills" "DragonKills" "" $tDragon
+    $out += &$AddRow "Wither Kills" "WitherKills" "" $tWither
+    $out += &$AddRow "Blocks Mined" "BlocksMined" "" $tMined
+    $out += &$AddRow "Blocks Placed" "BlocksPlaced" "" $tPlaced
+    $out += &$AddRow "Diamond Ore Mined" "Diamonds" "" $tDia
+    $out += &$
