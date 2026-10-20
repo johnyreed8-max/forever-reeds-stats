@@ -35,8 +35,7 @@ if ($oldSnapshotFile) {
 
 # --- NAČTENÍ AKTUÁLNÍCH STATISTIK ---
 $hraciDataAllTime = @()
-$hraciData14Days = @()
-$snapshotTodayData = @{}
+$hraciData14Days = @()$snapshotTodayData = @{}
 
 # Global totals All-Time
 $totalHours = 0; $totalDeaths = 0; $totalMobKills = 0; $totalMined = 0; $totalPlaced = 0; $totalTraded = 0; $totalDistance = 0; $totalTalked = 0;
@@ -49,69 +48,68 @@ $totalDamageDealt14 = 0; $totalDamageTaken14 = 0; $totalDiamonds14 = 0; $totalDe
 $totalDragonKills14 = 0; $totalWitherKills14 = 0; $totalCrafted14 = 0; $totalBred14 = 0;
 
 Get-ChildItem 'stats/*.json' -ErrorAction SilentlyContinue | ForEach-Object {
-    $uuid =$_.BaseName
-    $nickname = if ($jmena.Contains($uuid)) {$jmena[$uuid] } else {$uuid }
-    $json = Get-Content$_.FullName -Raw | ConvertFrom-Json
-    $custom =$json.stats.'minecraft:custom'
-    $mined =$json.stats.'minecraft:mined'
-    $killed =$json.stats.'minecraft:killed'
-    $crafted =$json.stats.'minecraft:crafted'
+    $uuid =$_.BaseName;
+    $nickname = if ($jmena.Contains($uuid)) {$jmena[$uuid] } else {$uuid };
+    $json = Get-Content$_.FullName -Raw | ConvertFrom-Json;
+    $custom =$json.stats.'minecraft:custom';
+    $mined =$json.stats.'minecraft:mined';
+    $killed =$json.stats.'minecraft:killed';
+    $crafted =$json.stats.'minecraft:crafted';
     
     # Raw values
-    $ticks = 0; if ($custom.'minecraft:play_time') {$ticks = $custom.'minecraft:play_time' } elseif ($custom.'minecraft:play_one_minute') { $ticks =$custom.'minecraft:play_one_minute' }
-    $hours = [Math]::Round($ticks / 20 / 60 / 60, 1)
-    $days = [Math]::Round($hours / 24, 1)
-    $timePlayedText = "$hours hrs / $days days"
+    $ticks = 0;
+    if ($custom.'minecraft:play_time') {$ticks = $custom.'minecraft:play_time' } elseif ($custom.'minecraft:play_one_minute') { $ticks =$custom.'minecraft:play_one_minute' };
+    $hours = [Math]::Round($ticks / 20 / 60 / 60, 1);
+    $days = [Math]::Round($hours / 24, 1);
+    $timePlayedText = "$hours hrs / $days days";
 
-    $deaths = if ($custom.'minecraft:deaths') {$custom.'minecraft:deaths' } else { 0 }
-    $sinceDeathTicks = if ($custom.'minecraft:time_since_death') { $custom.'minecraft:time_since_death' } else { 0 }$sinceDeathHours = [Math]::Round($sinceDeathTicks / 20 / 60 / 60, 1)$damageDealt = if ($custom.'minecraft:damage_dealt') { [Math]::Round($custom.'minecraft:damage_dealt' / 10, 0) } else { 0 }
-    $damageTaken = if ($custom.'minecraft:damage_taken') { [Math]::Round($custom.'minecraft:damage_taken' / 10, 0) } else { 0 }$mobKills = if ($custom.'minecraft:mob_kills') {$custom.'minecraft:mob_kills' } else { 0 }
-    $dragonKills = if ($killed.'minecraft:ender_dragon') { $killed.'minecraft:ender_dragon' } else { 0 }$witherKills = if ($killed.'minecraft:wither') {$killed.'minecraft:wither' } else { 0 }
+    $deaths = if ($custom.'minecraft:deaths') { $custom.'minecraft:deaths' } else { 0 };$sinceDeathTicks = if ($custom.'minecraft:time_since_death') {$custom.'minecraft:time_since_death' } else { 0 };
+    $sinceDeathHours = [Math]::Round($sinceDeathTicks / 20 / 60 / 60, 1);
     
-    $talked = if ($custom.'minecraft:talked_to_villager') { $custom.'minecraft:talked_to_villager' } else { 0 }$traded = if ($custom.'minecraft:traded_with_villager') {$custom.'minecraft:traded_with_villager' } else { 0 }
-    $jumps = if ($custom.'minecraft:jump') { $custom.'minecraft:jump' } else { 0 }$animalsBred = if ($custom.'minecraft:animals_bred') {$custom.'minecraft:animals_bred' } else { 0 }
+    $damageDealt = if ($custom.'minecraft:damage_dealt') { [Math]::Round($custom.'minecraft:damage_dealt' / 10, 0) } else { 0 };$damageTaken = if ($custom.'minecraft:damage_taken') { [Math]::Round($custom.'minecraft:damage_taken' / 10, 0) } else { 0 };
+    $mobKills = if ($custom.'minecraft:mob_kills') { $custom.'minecraft:mob_kills' } else { 0 };$dragonKills = if ($killed.'minecraft:ender_dragon') {$killed.'minecraft:ender_dragon' } else { 0 };
+    $witherKills = if ($killed.'minecraft:wither') { $killed.'minecraft:wither' } else { 0 };$talked = if ($custom.'minecraft:talked_to_villager') {$custom.'minecraft:talked_to_villager' } else { 0 };
+    $traded = if ($custom.'minecraft:traded_with_villager') { $custom.'minecraft:traded_with_villager' } else { 0 };$jumps = if ($custom.'minecraft:jump') {$custom.'minecraft:jump' } else { 0 };
+    $animalsBred = if ($custom.'minecraft:animals_bred') { $custom.'minecraft:animals_bred' } else { 0 };$totalPlayerCrafted = 0;
+    if ($crafted) { foreach ($p in$crafted.psobject.Properties) { $totalPlayerCrafted +=$p.Value } };
     
-    $totalPlayerCrafted = 0; if ($crafted) { foreach ($p in$crafted.psobject.Properties) { $totalPlayerCrafted +=$p.Value } }
+    $walk = if ($custom.'minecraft:walk_one_cm') { $custom.'minecraft:walk_one_cm' } else { 0 };$sprint = if ($custom.'minecraft:sprint_one_cm') {$custom.'minecraft:sprint_one_cm' } else { 0 };
+    $distanceKm = [Math]::Round(($walk + $sprint) / 100 / 1000, 1);$blocksMined = 0;
+    if ($mined) { foreach ($p in $mined.psobject.Properties) {$blocksMined += $p.Value } };$blocksPlaced = 0;
+    if ($json.stats.'minecraft:used') { 
+        foreach ($p in$json.stats.'minecraft:used'.psobject.Properties) { 
+            if ($p.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { 
+                $blocksPlaced +=$p.Value 
+            } 
+        } 
+    };
     
-    $walk = if ($custom.'minecraft:walk_one_cm') { $custom.'minecraft:walk_one_cm' } else { 0 }$sprint = if ($custom.'minecraft:sprint_one_cm') {$custom.'minecraft:sprint_one_cm' } else { 0 }
-    $distanceKm = [Math]::Round(($walk + $sprint) / 100 / 1000, 1)$blocksMined = 0; if ($mined) { foreach ($p in $mined.psobject.Properties) {$blocksMined += $p.Value } }$blocksPlaced = 0; if ($json.stats.'minecraft:used') { foreach ($p in $json.stats.'minecraft:used'.psobject.Properties) { if ($p.Name -notmatch 'minecart|boat|sword|axe|pickaxe|shovel|hoe|shear|flint|bucket|potion|apple|stew|bread|pie|beef|pork|chicken|mutton|salmon|cod|cookie|carrot|potato|kelp|melon|berries|soup') { $blocksPlaced +=$p.Value } } }
-    
-    $diamondOre = if ($mined.'minecraft:diamond_ore') { $mined.'minecraft:diamond_ore' } else { 0 }$deepslateDiamondOre = if ($mined.'minecraft:deepslate_diamond_ore') {$mined.'minecraft:deepslate_diamond_ore' } else { 0 }
-    $totalPlayerDiamonds =$diamondOre + $deepslateDiamondOre$ancientDebris = if ($mined.'minecraft:ancient_debris') {$mined.'minecraft:ancient_debris' } else { 0 }
+    $diamondOre = if ($mined.'minecraft:diamond_ore') {$mined.'minecraft:diamond_ore' } else { 0 };
+    $deepslateDiamondOre = if ($mined.'minecraft:deepslate_diamond_ore') { $mined.'minecraft:deepslate_diamond_ore' } else { 0 };$totalPlayerDiamonds = $diamondOre +$deepslateDiamondOre;
+    $ancientDebris = if ($mined.'minecraft:ancient_debris') {$mined.'minecraft:ancient_debris' } else { 0 };
     
     # Save current raw values for future snapshot
     $snapshotTodayData[$nickname] = @{
-        Hours = $hours; Deaths =$deaths; DamageDealt = $damageDealt; DamageTaken =$damageTaken
-        MobKills = $mobKills; DragonKills = $dragonKills; WitherKills =$witherKills
-        BlocksMined = $blocksMined; BlocksPlaced = $blocksPlaced; Diamonds =$totalPlayerDiamonds
-        Debris = $ancientDebris; Distance =$distanceKm; Jumps = $jumps; Crafted =$totalPlayerCrafted
-        Traded = $traded; Bred = $animalsBred; Talked =$talked
-    }
+        Hours = $hours;
+        Deaths = $deaths;
+        DamageDealt = $damageDealt;
+        DamageTaken = $damageTaken;
+        MobKills = $mobKills;
+        DragonKills = $dragonKills;
+        WitherKills = $witherKills;
+        BlocksMined = $blocksMined;
+        BlocksPlaced = $blocksPlaced;
+        Diamonds = $totalPlayerDiamonds;
+        Debris = $ancientDebris;
+        Distance = $distanceKm;
+        Jumps = $jumps;
+        Crafted = $totalPlayerCrafted;
+        Traded = $traded;
+        Bred = $animalsBred;
+        Talked = $talked
+    };
 
     # Cumulative totals
-    $totalHours +=$hours; $totalDeaths +=$deaths; $totalMobKills +=$mobKills; $totalMined +=$blocksMined; $totalPlaced +=$blocksPlaced; $totalTraded +=$traded; $totalDistance +=$distanceKm; $totalTalked +=$talked
-    $totalDamageDealt +=$damageDealt; $totalDamageTaken +=$damageTaken; $totalDiamonds +=$totalPlayerDiamonds; $totalDebris +=$ancientDebris; $totalJumps +=$jumps
-    $totalDragonKills +=$dragonKills; $totalWitherKills +=$witherKills; $totalCrafted +=$totalPlayerCrafted; $totalBred +=$animalsBred
-
-    $hraciDataAllTime += [PSCustomObject]@{
-        Nickname = $nickname; Hours =$hours; TimePlayedText = $timePlayedText; Deaths =$deaths
-        SinceDeathHours = $sinceDeathHours; DamageDealt = $damageDealt; DamageTaken =$damageTaken
-        MobKills = $mobKills; DragonKills = $dragonKills; WitherKills =$witherKills
-        BlocksMined = $blocksMined; BlocksPlaced = $blocksPlaced; Diamonds =$totalPlayerDiamonds
-        Debris = $ancientDebris; Distance =$distanceKm; Jumps = $jumps; Crafted =$totalPlayerCrafted
-        Traded = $traded; Bred = $animalsBred; Talked =$talked
-    }
-
-    # 14-day Delta Calculation
-    $old = if ($oldStatsData.ContainsKey($nickname)) { $oldStatsData[$nickname] } else { $null }$h14 = if ($old) { [Math]::Max(0, [Math]::Round($hours - $old.Hours, 1)) } else {$hours }
-    $d14 = [Math]::Round($h14 / 24, 1)
-    $t14 = "$h14 hrs / $d14 days"
-
-    $dt14 = if ($old) { [Math]::Max(0, $deaths -$old.Deaths) } else { $deaths }$dd14 = if ($old) { [Math]::Max(0,$damageDealt - $old.DamageDealt) } else {$damageDealt }
-    $mk14 = if ($old) { [Math]::Max(0, $mobKills -$old.MobKills) } else { $mobKills }$dk14 = if ($old) { [Math]::Max(0,$dragonKills - $old.DragonKills) } else {$dragonKills }
-    $wk14 = if ($old) { [Math]::Max(0, $witherKills -$old.WitherKills) } else { $witherKills }$bm14 = if ($old) { [Math]::Max(0,$blocksMined - $old.BlocksMined) } else {$blocksMined }
-    $bp14 = if ($old) { [Math]::Max(0, $blocksPlaced -$old.BlocksPlaced) } else { $blocksPlaced }$dia14 = if ($old) { [Math]::Max(0,$totalPlayerDiamonds - $old.Diamonds) } else {$totalPlayerDiamonds }
-    $deb14 = if ($old) { [Math]::Max(0, $ancientDebris -$old.Debris) } else { $ancientDebris }$dist14 = if ($old) { [Math]::Max(0, [Math]::Round($distanceKm - $old.Distance, 1)) } else {$distanceKm }
-    $j14 = if ($old) { [Math]::Max(0, $jumps -$old.Jumps) } else { $jumps }$cr14 = if ($old) { [Math]::Max(0,$totalPlayerCrafted - $old.Crafted) } else {$totalPlayerCrafted }
-    $tr14 = if ($old) { [Math]::Max(0, $traded -$old.Traded) } else { $traded }$br14 = if ($old) { [Math]::Max(0,$animalsBred - $old.Bred) } else {$animalsBred }
-    $tk14 = if ($old) { [Math]::Max(0, $talked -$old.Talked
+    $totalHours +=$hours; $totalDeaths +=$deaths; $totalMobKills +=$mobKills; $totalMined +=$blocksMined; $totalPlaced +=$blocksPlaced; $totalTraded +=$traded; $totalDistance +=$distanceKm; $totalTalked +=$talked;
+    $totalDamageDealt +=$damageDealt; $totalDamageTaken +=$damageTaken; $totalDiamonds +=$totalPlayerDiamonds; $totalDebris +=$ancientDebris; $totalJumps +=$jumps;
+    $totalDragonKills += $dragonKills; $total
