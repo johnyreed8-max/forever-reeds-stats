@@ -177,7 +177,7 @@ $template = @'
 
   td.r1 { color: var(--gold); font-weight: 600; background: rgba(244,201,93,.08); }
   tbody td { color: var(--gray); }
-  td.r2 { color: var(--silver); font-weight: 600; }
+  td.r2 { color: var(--silver); }
   td.r3 { color: var(--bronze); }
   td.z { color: #5d6879; }
   .medal { margin-left: 6px; font-size: .9em; }
@@ -218,7 +218,7 @@ $template = @'
   .pnm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
   .pv { white-space: nowrap; font-weight: 500; color: var(--gray); }
   .pr.r1 .pv { color: var(--gold); font-weight: 600; }
-  .pr.r2 .pv { color: var(--silver); font-weight: 600; }
+  .pr.r2 .pv { color: var(--silver); }
   .pr.r3 .pv { color: var(--bronze); }
   .pr.z { opacity: .45; }
   details.more > summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 13px; padding: 8px 8px 4px; }
