@@ -41,7 +41,7 @@ jobs:
           exit 1
         fi
 
-    -    - name: Stažení logů z Hostify FTP
+    - name: Stažení logů z Hostify FTP
       run: |
         mkdir -p logs
         if [ -f stats_history/deaths.json ]; then
