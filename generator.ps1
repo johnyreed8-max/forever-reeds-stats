@@ -326,7 +326,6 @@ $template = @'
   var FUN = [
     { i: '⛏️', t: 'Strip miner', s: 'blocks mined per hour', dec: 0, u: '/h', f: function (d) { return rate(d.mined, d); } },
     { i: '⚔️', t: 'Mob slayer', s: 'mob kills per hour', dec: 1, u: '/h', f: function (d) { return rate(d.mobKills, d); } },
-    { i: '🗡️', t: 'Mob massacre', s: 'total mobs killed', dec: 0, u: '', f: function (d) { return d.mobKills; } },
     { i: '🛡️', t: 'Survivor', s: 'hours played per death', dec: 1, u: 'h', f: function (d) { return d.hours >= 0.1 ? d.hours / Math.max(1, d.deaths) : null; }, note: function (d) { return d.deaths === 0 ? 'no deaths' : ''; } },
     { i: '🧭', t: 'Explorer', s: 'kilometers per hour of play', dec: 2, u: 'km/h', f: function (d) { return rate(d.distKm, d); } },
     { i: '🧱', t: 'Builder', s: 'blocks placed per hour', dec: 0, u: '/h', f: function (d) { return rate(d.placed, d); } },
