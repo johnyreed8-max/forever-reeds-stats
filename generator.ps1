@@ -517,6 +517,19 @@ $template = @'
 
   function el(id) { return document.getElementById(id); }
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  // Barvy nicků (Minecraft chat barvy)
+  var NICK_COLORS = {
+    'Alex_Reed':     '#AA00AA',  // purple (dark_purple)
+    'Johny_Reed':    '#55FFFF',  // aqua
+    'Kathryn_Reed':  '#AA0000',  // dark red
+    'ettelwen':      '#00AA00',  // dark green
+    'KarlTheBroken': '#FFAA00',  // gold
+    'dufe_com':      '#5555FF'   // blue
+  };
+  function nick(n) {
+    var c = NICK_COLORS[n];
+    return c ? '<span style="color:' + c + '">' + esc(n) + '</span>' : esc(n);
+  }
   var fmts = {};
   function fmt(v, dec) {
     dec = dec || 0;
@@ -656,7 +669,7 @@ $template = @'
         var v = row.vals[n], r = rk[n];
         var w = (max > 0 && v > 0) ? Math.max(3, v / max * 100) : 0;
         var pos = (r && row.medals) ? MEDAL[r] : String(i + 1);
-        return '<div class="pr' + (r ? ' r' + r : '') + (v === 0 ? ' z' : '') + '" style="--w:' + w.toFixed(1) + '%"><span class="pn">' + pos + '</span><span class="pnm">' + esc(n) + '</span><span class="pv">' + fmtVal(row, v) + '</span></div>';
+        return '<div class="pr' + (r ? ' r' + r : '') + (v === 0 ? ' z' : '') + '" style="--w:' + w.toFixed(1) + '%"><span class="pn">' + pos + '</span><span class="pnm">' + nick(n) + '</span><span class="pv">' + fmtVal(row, v) + '</span></div>';
       };
       h += '<div class="sc"><div class="sh"><span class="sl">' + esc(row.label) + '</span><span class="st">' + (row.total == null ? '—' : fmtVal(row, row.total)) + '</span></div>';
       order.slice(0, 3).forEach(function (n, i) { h += line(n, i); });
@@ -697,7 +710,7 @@ $template = @'
     var fit = rows.length <= 20;
     var minW = 200 + nicks.length * 130 + 140;
     var h = '<table class="' + (fit ? 'fit' : 'tall') + '" style="min-width:' + minW + 'px"><thead><tr><th class="stat-name">Statistic</th>';
-    nicks.forEach(function (n) { h += '<th class="player-header" title="' + esc(n) + '">' + esc(n) + '</th>'; });
+    nicks.forEach(function (n) { h += '<th class="player-header" title="' + esc(n) + '">' + nick(n) + '</th>'; });
     h += '<th class="server-total">Server total</th></tr></thead><tbody>';
 
     var lastCat = null;
@@ -726,7 +739,7 @@ $template = @'
     } else {
       var max = list[0].v;
       list.slice(0, 3).forEach(function (e, idx) {
-        h += '<div class="fr"><span>' + MEDAL[idx + 1] + '</span><span class="nm">' + esc(e.n) + '</span>' +
+        h += '<div class="fr"><span>' + MEDAL[idx + 1] + '</span><span class="nm">' + nick(e.n) + '</span>' +
              '<span class="val">' + fmt(e.v, dec) + (unit ? ' <small>' + unit + '</small>' : '') + (e.note ? ' <small>· ' + e.note + '</small>' : '') + '</span>' +
              '<div class="bar"><i style="width:' + Math.max(3, e.v / max * 100).toFixed(1) + '%"></i></div></div>';
       });
@@ -808,8 +821,8 @@ $template = @'
     var rp = ranked(byPlayer), rc = ranked(byCause);
 
     var h = '<div class="fun"><div class="kpis">' +
-      '<div class="kpi"><b>' + fmt(list.length) + '</b><span>deaths' + (ui.dp ? ' · ' + esc(ui.dp) : ' in total') + '</span></div>' +
-      '<div class="kpi"><b>' + esc(list[0].t.slice(0, 16)) + '</b><span>latest death' + (ui.dp ? '' : ' · ' + esc(list[0].n)) + '</span></div>' +
+      '<div class="kpi"><b>' + fmt(list.length) + '</b><span>deaths' + (ui.dp ? ' · ' + nick(ui.dp) : ' in total') + '</span></div>' +
+      '<div class="kpi"><b>' + esc(list[0].t.slice(0, 16)) + '</b><span>latest death' + (ui.dp ? '' : ' · ' + nick(list[0].n)) + '</span></div>' +
       '<div class="kpi"><b>' + esc(rc[0].n) + '</b><span>most common cause (' + rc[0].v + '×)</span></div>' +
       '</div>';
 
@@ -822,7 +835,7 @@ $template = @'
 
     h += '<div class="dtw"><table class="dt"><thead><tr><th>Time of death</th><th>Player</th><th>Cause</th></tr></thead><tbody>';
     list.forEach(function (d) {
-      h += '<tr><td class="when">' + esc(d.t) + '</td><td class="who">' + esc(d.n) + '</td><td class="cause">' + esc(deathCause(d.m)) + '</td></tr>';
+      h += '<tr><td class="when">' + esc(d.t) + '</td><td class="who">' + nick(d.n) + '</td><td class="cause">' + esc(deathCause(d.m)) + '</td></tr>';
     });
     return h + '</tbody></table></div></div>';
   }
