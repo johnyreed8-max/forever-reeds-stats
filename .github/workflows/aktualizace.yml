@@ -41,12 +41,16 @@ jobs:
           exit 1
         fi
 
+    - name: Stažení logů z Hostify FTP
+      run: |
+        mkdir -p logs
+        wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
+          "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/logs/*" \
+          --no-directories --accept="*.log.gz,latest.log" -P "logs" -N -nv || echo "::warning::Logy se nepodařilo stáhnout"
+        echo "Staženo logů: $(find logs -type f | wc -l)"
+
     - name: Spuštění kompilace do HTML
       shell: pwsh
-      env:
-        FTP_HOST: ftp.hostify.cz:21
-        FTP_USER: ${{ secrets.FTP_USER }}
-        FTP_PASS: ${{ secrets.FTP_PASSWORD }}
       run: ./generator.ps1
 
     - name: Sestavení složky webu
