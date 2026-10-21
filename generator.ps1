@@ -9,7 +9,8 @@ $updated  = $now.ToString('dd.MM.yyyy HH:mm:ss', $inv)
 $todayStr = $now.ToString('yyyy-MM-dd', $inv)
 
 $historyFolder = 'stats_history'
-$null = New-Item -ItemType Directory -Force -Path 'stats', $historyFolder
+$logsFolder    = 'logs'
+$null = New-Item -ItemType Directory -Force -Path 'stats', $historyFolder, $logsFolder
 
 # --- UUID -> nick ---
 $jmena = @{
@@ -41,6 +42,150 @@ foreach ($file in (Get-ChildItem 'stats/*.json' -ErrorAction SilentlyContinue)) 
 }
 
 if ($players.Count -eq 0) { throw 'Nenalezeny žádné soubory statistik, index.html se nepřepisuje.' }
+
+# =====================================================================
+# --- LOGY ZE SERVERU: stažení z FTP (/logs) ---
+# Údaje se berou z proměnných prostředí (GitHub Secrets):
+#   FTP_HOST   např. ftp.hostify.cz   (volitelně i s portem: host:21)
+#   FTP_USER, FTP_PASS
+#   FTP_LOGS_PATH   výchozí /logs
+#   FTP_SSL         true = explicitní FTPS (výchozí false)
+#   FTP_SKIP_CERT_CHECK   1 = nekontrolovat certifikát (jen u FTPS)
+# Když FTP_HOST není nastaven, stahování se přeskočí a použijí se logy
+# ve složce logs/ a uložená historie smrtí.
+# Chyba FTP nikdy neshodí generování – vypíše se jen varování.
+# =====================================================================
+$ftpHost     = $env:FTP_HOST
+$ftpLogsPath = if ($env:FTP_LOGS_PATH) { $env:FTP_LOGS_PATH } else { '/logs' }
+$ftpLogsPath = '/' + $ftpLogsPath.Trim('/')
+$ftpSsl      = ($env:FTP_SSL -eq 'true' -or $env:FTP_SSL -eq '1')
+
+function New-FtpRequest([string]$path, [string]$method) {
+    $req = [System.Net.FtpWebRequest]::Create("ftp://$ftpHost$path")
+    $req.Method           = $method
+    $req.Credentials      = New-Object System.Net.NetworkCredential($env:FTP_USER, $env:FTP_PASS)
+    $req.UsePassive       = $true
+    $req.UseBinary        = $true
+    $req.KeepAlive        = $false
+    $req.EnableSsl        = $ftpSsl
+    $req.Timeout          = 30000
+    $req.ReadWriteTimeout = 60000
+    return $req
+}
+
+function Get-FtpListing([string]$dir) {
+    $resp = (New-FtpRequest "$dir/" 'NLST').GetResponse()
+    try {
+        $sr = New-Object System.IO.StreamReader($resp.GetResponseStream())
+        $txt = $sr.ReadToEnd()
+    } finally { $resp.Dispose() }
+    return @($txt -split "`r?`n" | Where-Object { $_ -ne '' } | ForEach-Object { ($_ -split '/')[-1] })
+}
+
+function Get-FtpFile([string]$remote, [string]$local) {
+    $tmp = "$local.part"
+    $resp = (New-FtpRequest $remote 'RETR').GetResponse()
+    try {
+        $in  = $resp.GetResponseStream()
+        $out = [System.IO.File]::Create($tmp)
+        try { $in.CopyTo($out) } finally { $out.Dispose() }
+    } finally { $resp.Dispose() }
+    Move-Item -Path $tmp -Destination $local -Force
+}
+
+function Get-FtpModified([string]$remote) {
+    $resp = (New-FtpRequest $remote 'MDTM').GetResponse()
+    try { return $resp.LastModified.ToUniversalTime() } finally { $resp.Dispose() }
+}
+
+$ftpDownloaded = 0
+if ($ftpHost -and $env:FTP_USER) {
+    try {
+        if ($ftpSsl -and $env:FTP_SKIP_CERT_CHECK -eq '1') {
+            [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+        }
+        $remoteNames = Get-FtpListing $ftpLogsPath
+        foreach ($name in $remoteNames) {
+            $isArchive = $name -match '^\d{4}-\d{2}-\d{2}-\d+\.log\.gz$'
+            $isLatest  = $name -eq 'latest.log'
+            if (-not ($isArchive -or $isLatest)) { continue }
+            $local = Join-Path $logsFolder $name
+            # archivní .log.gz se nemění -> stačí stáhnout jednou; latest.log vždy znovu
+            if ($isArchive -and (Test-Path $local) -and (Get-Item $local).Length -gt 0) { continue }
+            Get-FtpFile "$ftpLogsPath/$name" $local
+            if ($isLatest) {
+                try { (Get-Item $local).LastWriteTimeUtc = Get-FtpModified "$ftpLogsPath/$name" } catch { }
+            }
+            $ftpDownloaded++
+        }
+        Write-Host "FTP logy: staženo souborů: $ftpDownloaded"
+    } catch {
+        Write-Warning "FTP logy se nepodařilo stáhnout: $($_.Exception.Message) – pokračuji s tím, co je uloženo."
+    }
+} else {
+    Write-Host 'FTP_HOST / FTP_USER nenastaveno – stahování logů přeskočeno.'
+}
+
+# --- SMRTI HRÁČŮ Z LOGŮ SERVERU ---
+# Řádek smrti: "[čas] [Server thread/INFO]: [System chat: ]Nick <zpráva o smrti>"
+$deathRe = '^\[(\d{2}:\d{2}:\d{2})\] \[[^\]]*/INFO\]: (?:System chat: )?([A-Za-z0-9_]{3,16}) ((?:was (?!kicked|banned)|fell |drowned|died|burned to death|tried to |suffocated|starved|withered|hit the ground|went up in flames|walked into|experienced |blew up|froze|discovered |didn.t want|left the world).*)$'
+
+function Read-LogLines([string]$path) {
+    if ($path -like '*.gz') {
+        $fs = [System.IO.File]::OpenRead($path)
+        try {
+            $gz = New-Object System.IO.Compression.GZipStream($fs, [System.IO.Compression.CompressionMode]::Decompress)
+            $sr = New-Object System.IO.StreamReader($gz, [System.Text.Encoding]::UTF8)
+            while ($null -ne ($line = $sr.ReadLine())) { $line }
+        } finally { $fs.Dispose() }
+    } else {
+        Get-Content -Path $path -Encoding utf8
+    }
+}
+
+$deathsAll  = New-Object System.Collections.Generic.List[object]
+$deathSeen  = @{}
+
+function Add-Death([string]$ts, [string]$t, [string]$n, [string]$m) {
+    $key = "$ts|$n|$m"
+    if ($deathSeen.ContainsKey($key)) { return }          # ochrana proti duplicitám
+    $deathSeen[$key] = $true
+    $deathsAll.Add([ordered]@{ ts = $ts; t = $t; n = $n; m = $m })
+}
+
+# 1) dříve uložená historie (smrti zůstanou, i kdyby server staré logy smazal)
+$deathsHistoryFile = Join-Path $historyFolder 'deaths.json'
+if (Test-Path $deathsHistoryFile) {
+    try {
+        foreach ($h in @(Get-Content -Path $deathsHistoryFile -Raw | ConvertFrom-Json)) {
+            Add-Death $h.ts $h.t $h.n $h.m
+        }
+    } catch { Write-Warning "deaths.json se nepodařilo načíst: $($_.Exception.Message)" }
+}
+
+# 2) všechny lokální logy
+$logFiles = @(Get-ChildItem $logsFolder -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(\d{4}-\d{2}-\d{2}-\d+\.log\.gz|latest\.log)$' })
+foreach ($lf in $logFiles) {
+    if ($lf.Name -match '^(\d{4}-\d{2}-\d{2})-\d+\.log\.gz$') {
+        $day = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $inv)
+    } else {
+        $day = [TimeZoneInfo]::ConvertTimeFromUtc($lf.LastWriteTimeUtc, $tz).Date
+    }
+    foreach ($line in (Read-LogLines $lf.FullName)) {
+        if ($line -notmatch $deathRe) { continue }
+        $when = $day.Add([TimeSpan]::Parse($Matches[1], $inv))
+        Add-Death $when.ToString('yyyy-MM-dd HH:mm:ss', $inv) $when.ToString('dd.MM.yyyy HH:mm:ss', $inv) $Matches[2] $Matches[3]
+    }
+}
+
+[object[]]$deaths = @($deathsAll | Sort-Object { $_.ts } -Descending)
+$deathsFrom = if ($deaths.Count -gt 0) { $deaths[-1].t.Substring(0, 10) } else { '' }
+
+# 3) uložení historie
+[System.IO.File]::WriteAllText(
+    (Join-Path (Get-Location) $deathsHistoryFile),
+    (ConvertTo-Json -InputObject $deaths -Depth 3 -Compress),
+    [System.Text.UTF8Encoding]::new($false))
 
 # --- SNAPSHOT: jednou denně (první běh dne = stav na začátku dne) ---
 $snapFile = Join-Path $historyFolder "snap_$todayStr.json"
@@ -95,9 +240,11 @@ foreach ($def in @(@('day', 0), @('week', 6), @('month', 29))) {
 }
 
 $data = [ordered]@{
-    updated = $updated
-    current = $players
-    periods = $periods
+    updated    = $updated
+    current    = $players
+    periods    = $periods
+    deaths     = $deaths
+    deathsInfo = [ordered]@{ files = $logFiles.Count; from = $deathsFrom }
 }
 $dataJson = ($data | ConvertTo-Json -Depth 10 -Compress).Replace('</', '<\/')
 
@@ -225,6 +372,14 @@ $template = @'
   details.more > summary::-webkit-details-marker { display: none; }
   details.more[open] > summary { color: var(--text); }
 
+  /* záložka Deaths */
+  .dtw { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+  table.dt { table-layout: auto; min-width: 360px; }
+  table.dt td.cause { white-space: normal; color: var(--text); }
+  table.dt td.when { color: var(--muted); }
+  table.dt td.who { color: var(--emerald); font-weight: 600; }
+  table.dt tbody td { height: 34px; }
+
   @media (max-width: 720px) {
     html, body { height: auto; min-height: 100%; overflow: auto; -webkit-text-size-adjust: 100%; }
     .app { height: auto; min-height: 100vh; min-height: 100dvh; padding: 12px 12px calc(76px + env(safe-area-inset-bottom)); gap: 10px; }
@@ -264,6 +419,7 @@ $template = @'
     <nav class="tabs" id="main-tabs">
       <button class="tab-btn" data-view="stats">Stats 📈</button>
       <button class="tab-btn" data-view="fun">Fun facts ✨</button>
+      <button class="tab-btn" data-view="deaths">Deaths 💀</button>
       <button class="tab-btn" data-view="map">World map 🗺️</button>
     </nav>
   </header>
@@ -281,6 +437,9 @@ $template = @'
       <input class="ctl" type="search" id="q" placeholder="Search stats…" aria-label="Search stats">
       <label class="switch"><input type="checkbox" id="showAll"><span class="slider"></span><span>Show all stats</span></label>
       <select class="ctl" id="cat" aria-label="Category"></select>
+    </div>
+    <div class="controls" id="deathControls" hidden>
+      <select class="ctl" id="deathPlayer" aria-label="Player"></select>
     </div>
   </div>
 
@@ -338,7 +497,7 @@ $template = @'
     { i: '🎣', t: 'Angler', s: 'fish caught per hour', dec: 1, u: '/h', f: function (d) { return rate(d.fish, d); } }
   ];
 
-  var ui = { view: 'stats', period: 'all', showAll: false, q: '', cat: '' };
+  var ui = { view: 'stats', period: 'all', showAll: false, q: '', cat: '', dp: '' };
   var mq = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { matches: false };
   function isMobile() { return mq.matches; }
   var cache = {};
@@ -598,6 +757,63 @@ $template = @'
     return h + '</div></div>';
   }
 
+  function deathCause(m) {
+    m = String(m).replace(/^was /, '');
+    return m.charAt(0).toUpperCase() + m.slice(1);
+  }
+  function killerOf(m) {
+    var x = / by (.+?)(?: using .*)?$/.exec(m);
+    return x ? x[1] : deathCause(m);
+  }
+
+  function viewDeaths() {
+    var all = DATA.deaths || [];
+    var info = DATA.deathsInfo || {};
+
+    var names = {};
+    all.forEach(function (d) { names[d.n] = (names[d.n] || 0) + 1; });
+    var sel = el('deathPlayer');
+    var opts = '<option value="">All players</option>';
+    Object.keys(names).sort().forEach(function (n) { opts += '<option value="' + esc(n) + '">' + esc(n) + ' (' + names[n] + ')</option>'; });
+    sel.innerHTML = opts;
+    if (!names[ui.dp]) ui.dp = '';
+    sel.value = ui.dp;
+
+    if (!all.length) return '<div class="empty">No deaths found in the server logs yet.</div>';
+
+    var list = ui.dp ? all.filter(function (d) { return d.n === ui.dp; }) : all;
+
+    var byPlayer = {}, byCause = {};
+    list.forEach(function (d) {
+      byPlayer[d.n] = (byPlayer[d.n] || 0) + 1;
+      var k = killerOf(d.m);
+      byCause[k] = (byCause[k] || 0) + 1;
+    });
+    function ranked(o) {
+      return Object.keys(o).map(function (k) { return { n: k, v: o[k] }; }).sort(function (a, b) { return b.v - a.v; });
+    }
+    var rp = ranked(byPlayer), rc = ranked(byCause);
+
+    var h = '<div class="fun"><div class="kpis">' +
+      '<div class="kpi"><b>' + fmt(list.length) + '</b><span>deaths' + (ui.dp ? ' · ' + esc(ui.dp) : ' in total') + '</span></div>' +
+      '<div class="kpi"><b>' + esc(list[0].t.slice(0, 16)) + '</b><span>latest death' + (ui.dp ? '' : ' · ' + esc(list[0].n)) + '</span></div>' +
+      '<div class="kpi"><b>' + esc(rc[0].n) + '</b><span>most common cause (' + rc[0].v + '×)</span></div>' +
+      '</div>';
+
+    h += '<div class="note">From server logs' + (info.from ? ' (since ' + esc(info.from) + ')' : '') + ' · times as written in the log</div>';
+
+    h += '<div class="grid">';
+    if (!ui.dp) h += funCard('💀', 'Most deaths', 'per player, from logs', rp, 0, 'deaths');
+    h += funCard('☠️', 'Deadliest causes', ui.dp ? 'what killed ' + ui.dp : 'what killed players most', rc, 0, 'deaths');
+    h += '</div>';
+
+    h += '<div class="dtw"><table class="dt"><thead><tr><th>Time of death</th><th>Player</th><th>Cause</th></tr></thead><tbody>';
+    list.forEach(function (d) {
+      h += '<tr><td class="when">' + esc(d.t) + '</td><td class="who">' + esc(d.n) + '</td><td class="cause">' + esc(deathCause(d.m)) + '</td></tr>';
+    });
+    return h + '</tbody></table></div></div>';
+  }
+
   function setActive(selector, attr, value) {
     var btns = document.querySelectorAll(selector);
     for (var i = 0; i < btns.length; i++) {
@@ -608,12 +824,15 @@ $template = @'
   }
 
   function update() {
-    var isMap = ui.view === 'map', isStats = ui.view === 'stats';
+    var isMap = ui.view === 'map', isStats = ui.view === 'stats', isDeaths = ui.view === 'deaths';
     setActive('#main-tabs .tab-btn', 'data-view', ui.view);
     setActive('#period-tabs .tab-btn', 'data-period', ui.period);
 
     el('toolbar').hidden = isMap;
     el('statsControls').hidden = !isStats;
+    el('deathControls').hidden = !isDeaths;
+    el('period-tabs').hidden = isDeaths;
+    el('note').hidden = isDeaths;
     el('cat').style.display = ui.showAll ? '' : 'none';
     el('view-data').style.display = isMap ? 'none' : 'block';
     el('view-map').style.display = isMap ? 'block' : 'none';
@@ -630,6 +849,7 @@ $template = @'
         el('note').textContent = 'Change since ' + P.since + (P.exact ? '' : ' · history so far') + (isStats ? '' : ' (' + PERIOD_LABEL[ui.period] + ')');
       }
       if (isStats) el('content').innerHTML = viewStats(vals, nicks);
+      else if (isDeaths) el('content').innerHTML = viewDeaths();
       else el('content').innerHTML = viewFun(vals, nicks);
       el('content').scrollTop = 0;
     }
@@ -644,12 +864,13 @@ $template = @'
     el('q').addEventListener('input', function () { ui.q = this.value; update(); });
     el('showAll').addEventListener('change', function () { ui.showAll = this.checked; update(); });
     el('cat').addEventListener('change', function () { ui.cat = this.value; update(); });
+    el('deathPlayer').addEventListener('change', function () { ui.dp = this.value; update(); });
     if (mq.addEventListener) mq.addEventListener('change', update);
     else if (mq.addListener) mq.addListener(update);
   }
 
   var parts = location.hash.replace('#', '').split('/');
-  if (['stats', 'fun', 'map'].indexOf(parts[0]) >= 0) ui.view = parts[0];
+  if (['stats', 'fun', 'deaths', 'map'].indexOf(parts[0]) >= 0) ui.view = parts[0];
   if (['all', 'month', 'week', 'day'].indexOf(parts[1]) >= 0) ui.period = parts[1];
   bind();
   update();
@@ -661,4 +882,4 @@ $template = @'
 
 $html = $template.Replace('__UPDATED__', $updated).Replace('__DATA__', $dataJson)
 [System.IO.File]::WriteAllText((Join-Path (Get-Location) 'index.html'), $html, [System.Text.UTF8Encoding]::new($false))
-Write-Host "index.html vygenerován ($($players.Count) hráčů, snapshotů: $($snaps.Count))"
+Write-Host "index.html vygenerován ($($players.Count) hráčů, snapshotů: $($snaps.Count), smrtí: $($deaths.Count))"
