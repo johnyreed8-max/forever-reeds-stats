@@ -43,6 +43,10 @@ jobs:
 
     - name: Spuštění kompilace do HTML
       shell: pwsh
+      env:
+        FTP_HOST: ftp.hostify.cz:21
+        FTP_USER: ${{ secrets.FTP_USER }}
+        FTP_PASS: ${{ secrets.FTP_PASSWORD }}
       run: ./generator.ps1
 
     - name: Sestavení složky webu
