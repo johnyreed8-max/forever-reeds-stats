@@ -335,6 +335,9 @@ foreach ($def in @(@('day', 0), @('week', 6), @('month', 29))) {
     }
 }
 
+$avatars = [ordered]@{}
+foreach ($kv in $jmena.GetEnumerator()) { $avatars[$kv.Value] = $kv.Key }
+
 $data = [ordered]@{
     updated    = $updated
     current    = $players
@@ -342,6 +345,7 @@ $data = [ordered]@{
     deaths     = $deaths
     deathsInfo = [ordered]@{ files = $logFiles.Count; from = $deathsFrom }
     activity   = $activity
+    avatars    = $avatars
 }
 $dataJson = ($data | ConvertTo-Json -Depth 10 -Compress).Replace('</', '<\/')
 
@@ -448,6 +452,38 @@ $template = @'
   .bar i { display: block; height: 100%; border-radius: 2px; background: var(--emerald); }
   .none { color: var(--muted); font-size: 13px; padding: 6px 0; }
 
+  /* záložka Overview (dashboard) */
+  .ov-head { padding: 2px 2px 4px; }
+  .ov-head h2 { margin: 0 0 3px; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: clamp(17px, 2.6vh, 22px); }
+  .ov-head p { margin: 0; color: var(--muted); font-size: 13px; }
+  .ov-section { display: flex; flex-direction: column; margin-top: 2px; }
+  .ov-section > h3 { margin: 0 0 8px; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+  .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .rp { display: flex; align-items: center; gap: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; }
+  .rp-av { position: relative; width: 38px; height: 38px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #08261a; font-family: 'Bricolage Grotesque', system-ui, sans-serif; overflow: hidden; }
+  .rp-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+  .rp-name { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 5px; overflow: hidden; }
+  .rp-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rp-sub { color: var(--muted); font-size: 12px; margin-top: 1px; }
+
+  .ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .ov-tile { text-align: left; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; color: var(--text); font: inherit; transition: border-color .15s, transform .15s; }
+  .ov-tile:hover { border-color: var(--emerald); transform: translateY(-1px); }
+  .ov-tile:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; }
+  .ov-tile .ti { font-size: 20px; line-height: 1; }
+  .ov-tile h4 { margin: 8px 0 2px; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: 14px; }
+  .ov-tile p { margin: 0; color: var(--muted); font-size: 12px; }
+
+  .ov-deaths { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .ov-deaths .dr { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .ov-deaths .dr:last-child { border-bottom: 0; }
+  .ov-deaths .dr .when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .ov-deaths .dr .who { font-weight: 600; white-space: nowrap; }
+  .ov-deaths .dr .cause { color: var(--gray); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ov-more { align-self: flex-start; margin-top: 10px; background: transparent; border: 1px solid var(--line); color: var(--muted); font: inherit; font-size: 12px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+  .ov-more:hover { color: var(--text); border-color: var(--emerald); }
+
   [hidden] { display: none !important; }
 
   /* karty statistik (používají se na telefonu) */
@@ -533,6 +569,7 @@ $template = @'
       <div class="update-time"><span class="dot"></span>Updated __UPDATED__</div>
     </div>
     <nav class="tabs" id="main-tabs">
+      <button class="tab-btn" data-view="overview">Overview 🏠</button>
       <button class="tab-btn" data-view="stats">Stats 📈</button>
       <button class="tab-btn" data-view="fun">Fun facts ✨</button>
       <button class="tab-btn" data-view="deaths">Deaths 💀</button>
@@ -617,10 +654,11 @@ $template = @'
     { i: '🎣', t: 'Angler', s: 'fish caught per hour', dec: 1, u: '/h', f: function (d) { return rate(d.fish, d); } }
   ];
 
-  var ui = { view: 'stats', period: 'all', showAll: false, q: '', cat: '', dp: '', ap: '' };
+  var ui = { view: 'overview', period: 'all', showAll: false, q: '', cat: '', dp: '', ap: '' };
   var mq = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { matches: false };
   function isMobile() { return mq.matches; }
   var cache = {};
+  window.__goto = function (v, p) { ui.view = v; if (p) ui.period = p; update(); window.scrollTo(0, 0); };
 
   function el(id) { return document.getElementById(id); }
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -854,6 +892,85 @@ $template = @'
     return h + '</div>';
   }
 
+  function initials(n) { return esc(String(n).slice(0, 2).toUpperCase()); }
+
+  function avatarHtml(n) {
+    var uuid = (DATA.avatars || {})[n];
+    var c = NICK_COLORS[n] || '#3ddc97';
+    var h = '<span class="rp-av" style="background:' + c + '">' + initials(n);
+    if (uuid) h += '<img src="https://crafatar.com/avatars/' + uuid + '?size=64&overlay" alt="" loading="lazy" onerror="this.remove()">';
+    return h + '</span>';
+  }
+
+  function viewOverview() {
+    var vals = valuesFor('all'), nicks = sortedNicks(vals);
+    var D = {};
+    nicks.forEach(function (n) { D[n] = derive(vals[n]); });
+    function sum(k) { return nicks.reduce(function (s, n) { return s + D[n][k]; }, 0); }
+
+    var h = '<div class="fun">';
+    h += '<div class="ov-head"><h2>Forever Reeds dashboard</h2><p>Lifetime totals across ' + nicks.length + ' tracked player' + (nicks.length === 1 ? '' : 's') + ' · updated __UPDATED__</p></div>';
+
+    var hero = [
+      [fmt(sum('hours'), 0) + ' h', '= ' + fmt(sum('hours') / 24, 1) + ' days played'],
+      [fmt(sum('deaths')), 'total deaths'],
+      [fmt(sum('mined')), 'blocks mined'],
+      [fmt(sum('diamonds')), 'diamond ore mined'],
+      [fmt(sum('mobKills')), 'mobs slain'],
+      [fmt(sum('distKm'), 0) + ' km', 'travelled']
+    ];
+    h += '<div class="kpis">';
+    hero.forEach(function (k) { h += '<div class="kpi"><b>' + k[0] + '</b><span>' + k[1] + '</span></div>'; });
+    h += '</div>';
+
+    var wv = valuesFor('week'), wn = Object.keys(wv);
+    if (wn.length) {
+      var WD = {};
+      wn.forEach(function (n) { WD[n] = derive(wv[n]); });
+      var wsum = function (k) { return wn.reduce(function (s, n) { return s + WD[n][k]; }, 0); };
+      if (wsum('hours') > 0 || wsum('mined') > 0 || wsum('deaths') > 0) {
+        h += '<div class="ov-section"><h3>Last 7 days</h3><div class="kpis">' +
+          '<div class="kpi"><b>' + fmt(wsum('hours'), 1) + ' h</b><span>played</span></div>' +
+          '<div class="kpi"><b>' + fmt(wsum('mined')) + '</b><span>blocks mined</span></div>' +
+          '<div class="kpi"><b>' + fmt(wsum('mobKills')) + '</b><span>mobs killed</span></div>' +
+          '<div class="kpi"><b>' + fmt(wsum('deaths')) + '</b><span>deaths</span></div>' +
+          '</div></div>';
+      }
+    }
+
+    h += '<div class="ov-section"><h3>Players</h3><div class="roster">';
+    nicks.forEach(function (n, i) {
+      h += '<div class="rp">' + avatarHtml(n) +
+        '<div><div class="rp-name"><span>' + nick(n) + '</span>' + (i < 3 ? MEDAL[i + 1] : '') + '</div>' +
+        '<div class="rp-sub">' + fmt(D[n].hours, 1) + ' h played · ' + fmt(D[n].deaths) + ' deaths</div></div></div>';
+    });
+    h += '</div></div>';
+
+    var deaths = DATA.deaths || [];
+    if (deaths.length) {
+      h += '<div class="ov-section"><h3>Latest deaths</h3><div class="ov-deaths">';
+      deaths.slice(0, 5).forEach(function (d) {
+        h += '<div class="dr"><span class="when">' + esc(d.t.slice(0, 16)) + '</span><span class="who">' + nick(d.n) + '</span><span class="cause">' + esc(deathCause(d.m)) + '</span></div>';
+      });
+      h += '</div><button class="ov-more" onclick="window.__goto(\'deaths\')">See all deaths →</button></div>';
+    }
+
+    var tiles = [
+      { v: 'stats', i: '📈', t: 'Full stats table', s: 'Every tracked statistic, side by side' },
+      { v: 'fun', i: '✨', t: 'Fun facts', s: 'Quirky leaderboards & awards' },
+      { v: 'deaths', i: '💀', t: 'Deaths', s: 'Full death log with causes' },
+      { v: 'activity', i: '🔥', t: 'Activity', s: 'When people actually play' },
+      { v: 'map', i: '🗺️', t: 'World map', s: 'Explore the world live' }
+    ];
+    h += '<div class="ov-section"><h3>Explore</h3><div class="ov-grid">';
+    tiles.forEach(function (x) {
+      h += '<button class="ov-tile" onclick="window.__goto(\'' + x.v + '\')"><div class="ti">' + x.i + '</div><h4>' + x.t + '</h4><p>' + x.s + '</p></button>';
+    });
+    h += '</div></div>';
+
+    return h + '</div>';
+  }
+
   function viewFun(vals, nicks) {
     var D = {};
     nicks.forEach(function (n) { D[n] = derive(vals[n]); });
@@ -1060,7 +1177,7 @@ $template = @'
   }
 
   function update() {
-    var isMap = ui.view === 'map', isStats = ui.view === 'stats', isDeaths = ui.view === 'deaths', isAct = ui.view === 'activity';
+    var isMap = ui.view === 'map', isStats = ui.view === 'stats', isDeaths = ui.view === 'deaths', isAct = ui.view === 'activity', isOverview = ui.view === 'overview';
     setActive('#main-tabs .tab-btn', 'data-view', ui.view);
     setActive('#period-tabs .tab-btn', 'data-period', ui.period);
 
@@ -1068,8 +1185,8 @@ $template = @'
     el('statsControls').hidden = !isStats;
     el('deathControls').hidden = !isDeaths;
     el('actControls').hidden = !isAct;
-    el('period-tabs').hidden = isDeaths || isAct;
-    el('note').hidden = isDeaths || isAct;
+    el('period-tabs').hidden = isDeaths || isAct || isOverview;
+    el('note').hidden = isDeaths || isAct || isOverview;
     el('cat').style.display = ui.showAll ? '' : 'none';
     el('view-data').style.display = isMap ? 'none' : 'block';
     el('view-map').style.display = isMap ? 'block' : 'none';
@@ -1077,6 +1194,9 @@ $template = @'
     if (isMap) {
       var frame = el('map-frame');
       if (!frame.getAttribute('src')) frame.setAttribute('src', frame.getAttribute('data-src'));
+    } else if (isOverview) {
+      el('content').innerHTML = viewOverview();
+      el('content').scrollTop = 0;
     } else {
       var vals = valuesFor(ui.period), nicks = sortedNicks(vals);
       if (ui.period === 'all') {
@@ -1109,7 +1229,7 @@ $template = @'
   }
 
   var parts = location.hash.replace('#', '').split('/');
-  if (['stats', 'fun', 'deaths', 'activity', 'map'].indexOf(parts[0]) >= 0) ui.view = parts[0];
+  if (['overview', 'stats', 'fun', 'deaths', 'activity', 'map'].indexOf(parts[0]) >= 0) ui.view = parts[0];
   if (['all', 'month', 'week', 'day'].indexOf(parts[1]) >= 0) ui.period = parts[1];
   bind();
   update();
