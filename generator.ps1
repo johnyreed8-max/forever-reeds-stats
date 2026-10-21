@@ -107,7 +107,7 @@ $template = @'
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <title>Forever Reeds MC Server</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -116,8 +116,8 @@ $template = @'
 <style>
   :root {
     --bg: #12151b; --panel: #1a1f28; --panel-2: #212835; --line: #2b3342;
-    --text: #c4ccd8; --muted: #8d99ab; --emerald: #3ddc97;
-    --gold: #f4c95d; --silver: #e7ecf3; --bronze: #d99a6c;
+    --text: #e7ecf3; --muted: #8d99ab; --emerald: #3ddc97;
+    --gold: #f4c95d; --silver: #c4ccd8; --bronze: #d99a6c;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; overflow: hidden; }
@@ -202,6 +202,55 @@ $template = @'
   .bar { grid-column: 2 / 4; height: 3px; border-radius: 2px; background: var(--line); margin-top: 3px; }
   .bar i { display: block; height: 100%; border-radius: 2px; background: var(--emerald); }
   .none { color: var(--muted); font-size: 13px; padding: 6px 0; }
+
+  [hidden] { display: none !important; }
+
+  /* karty statistik (používají se na telefonu) */
+  .sg { margin: 16px 2px 6px; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: 15px; font-weight: 700; color: var(--emerald); }
+  .sc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 10px 8px; margin-bottom: 8px; }
+  .sh { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 4px 6px; }
+  .sl { font-weight: 600; }
+  .st { color: var(--emerald); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pr { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; padding: 7px 8px; border-radius: 8px; font-variant-numeric: tabular-nums; background: linear-gradient(90deg, rgba(61,220,151,.14) var(--w, 0%), transparent var(--w, 0%)); }
+  .pr + .pr { margin-top: 2px; }
+  .pn { color: var(--muted); font-size: .9em; }
+  .pnm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+  .pv { white-space: nowrap; font-weight: 500; }
+  .pr.r1 .pv { color: var(--gold); font-weight: 600; }
+  .pr.r2 .pv { color: var(--silver); }
+  .pr.r3 .pv { color: var(--bronze); }
+  .pr.z { opacity: .45; }
+  details.more > summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 13px; padding: 8px 8px 4px; }
+  details.more > summary::-webkit-details-marker { display: none; }
+  details.more[open] > summary { color: var(--text); }
+
+  @media (max-width: 720px) {
+    html, body { height: auto; min-height: 100%; overflow: auto; -webkit-text-size-adjust: 100%; }
+    .app { height: auto; min-height: 100vh; min-height: 100dvh; padding: 12px 12px calc(76px + env(safe-area-inset-bottom)); gap: 10px; }
+    header { gap: 4px; }
+    .brand h1 { font-size: 22px; }
+    .update-time { font-size: 12px; margin-top: 2px; }
+
+    #main-tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: flex; gap: 0; border-radius: 0; border-width: 1px 0 0 0; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: rgba(26,31,40,.96); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    #main-tabs .tab-btn { flex: 1; padding: 12px 4px; text-align: center; font-size: 14px; }
+
+    .toolbar { display: contents; }
+    #period-tabs { display: flex; position: sticky; top: 8px; z-index: 30; box-shadow: 0 0 0 8px var(--bg); }
+    #period-tabs .tab-btn { flex: 1; padding: 10px 2px; text-align: center; font-size: 13px; }
+    .spacer { display: none; }
+    .note { font-size: 12px; margin-top: -2px; }
+    .controls { width: 100%; }
+    input.ctl { flex: 1; width: auto; min-width: 0; font-size: 16px; }
+    select.ctl { flex: 1 1 100%; max-width: none; width: 100%; font-size: 16px; }
+
+    main { flex: 1; }
+    .view { height: auto; }
+    .card { height: auto; overflow: visible; background: none; border: 0; border-radius: 0; }
+    .card.map { height: calc(100vh - 160px); height: calc(100dvh - 160px - env(safe-area-inset-bottom)); overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+    .fun { padding: 0; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -289,6 +338,8 @@ $template = @'
   ];
 
   var ui = { view: 'stats', period: 'all', showAll: false, q: '', cat: '' };
+  var mq = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { matches: false };
+  function isMobile() { return mq.matches; }
   var cache = {};
 
   function el(id) { return document.getElementById(id); }
@@ -417,6 +468,35 @@ $template = @'
     return nicks.sort(function (a, b) { return h[b] - h[a]; });
   }
 
+  function viewStatsMobile(rows, nicks) {
+    var h = '', lastCat = null;
+    rows.forEach(function (row) {
+      if (ui.showAll && row.cat !== lastCat) {
+        h += '<h2 class="sg">' + esc(CAT_NAMES[row.cat] || row.cat) + '</h2>';
+        lastCat = row.cat;
+      }
+      var rk = ranks(row, nicks);
+      var order = nicks.slice().sort(function (a, b) { return row.low ? row.vals[a] - row.vals[b] : row.vals[b] - row.vals[a]; });
+      var max = 0;
+      nicks.forEach(function (n) { if (row.vals[n] > max) max = row.vals[n]; });
+      var line = function (n, i) {
+        var v = row.vals[n], r = rk[n];
+        var w = (max > 0 && v > 0) ? Math.max(3, v / max * 100) : 0;
+        var pos = (r && row.medals) ? MEDAL[r] : String(i + 1);
+        return '<div class="pr' + (r ? ' r' + r : '') + (v === 0 ? ' z' : '') + '" style="--w:' + w.toFixed(1) + '%"><span class="pn">' + pos + '</span><span class="pnm">' + esc(n) + '</span><span class="pv">' + fmtVal(row, v) + '</span></div>';
+      };
+      h += '<div class="sc"><div class="sh"><span class="sl">' + esc(row.label) + '</span><span class="st">' + (row.total == null ? '—' : fmtVal(row, row.total)) + '</span></div>';
+      order.slice(0, 3).forEach(function (n, i) { h += line(n, i); });
+      if (order.length > 3) {
+        h += '<details class="more"><summary>Show ' + (order.length - 3) + ' more</summary>';
+        order.slice(3).forEach(function (n, i) { h += line(n, i + 3); });
+        h += '</details>';
+      }
+      h += '</div>';
+    });
+    return h;
+  }
+
   function viewStats(vals, nicks) {
     var rows = curatedRows(vals, nicks);
     if (ui.showAll) rows = rows.concat(rawRows(vals, nicks));
@@ -438,6 +518,8 @@ $template = @'
       return true;
     });
     if (!rows.length) return '<div class="empty">No stats match your filter.</div>';
+
+    if (isMobile()) return viewStatsMobile(rows, nicks);
 
     var fit = rows.length <= 20;
     var minW = 200 + nicks.length * 130 + 140;
@@ -514,8 +596,8 @@ $template = @'
     setActive('#main-tabs .tab-btn', 'data-view', ui.view);
     setActive('#period-tabs .tab-btn', 'data-period', ui.period);
 
-    el('toolbar').style.display = isMap ? 'none' : 'flex';
-    el('statsControls').style.display = isStats ? 'flex' : 'none';
+    el('toolbar').hidden = isMap;
+    el('statsControls').hidden = !isStats;
     el('cat').style.display = ui.showAll ? '' : 'none';
     el('view-data').style.display = isMap ? 'none' : 'block';
     el('view-map').style.display = isMap ? 'block' : 'none';
@@ -540,12 +622,14 @@ $template = @'
 
   function bind() {
     var vb = document.querySelectorAll('#main-tabs .tab-btn');
-    for (var i = 0; i < vb.length; i++) vb[i].addEventListener('click', function () { ui.view = this.getAttribute('data-view'); update(); });
+    for (var i = 0; i < vb.length; i++) vb[i].addEventListener('click', function () { ui.view = this.getAttribute('data-view'); update(); window.scrollTo(0, 0); });
     var pb = document.querySelectorAll('#period-tabs .tab-btn');
     for (var j = 0; j < pb.length; j++) pb[j].addEventListener('click', function () { ui.period = this.getAttribute('data-period'); update(); });
     el('q').addEventListener('input', function () { ui.q = this.value; update(); });
     el('showAll').addEventListener('change', function () { ui.showAll = this.checked; update(); });
     el('cat').addEventListener('change', function () { ui.cat = this.value; update(); });
+    if (mq.addEventListener) mq.addEventListener('change', update);
+    else if (mq.addListener) mq.addListener(update);
   }
 
   var parts = location.hash.replace('#', '').split('/');
