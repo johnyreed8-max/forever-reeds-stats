@@ -326,6 +326,7 @@ $template = @'
   var FUN = [
     { i: '⛏️', t: 'Strip miner', s: 'blocks mined per hour', dec: 0, u: '/h', f: function (d) { return rate(d.mined, d); } },
     { i: '⚔️', t: 'Mob slayer', s: 'mob kills per hour', dec: 1, u: '/h', f: function (d) { return rate(d.mobKills, d); } },
+    { i: '🗡️', t: 'Mob massacre', s: 'total mobs killed', dec: 0, u: '', f: function (d) { return d.mobKills; } },
     { i: '🛡️', t: 'Survivor', s: 'hours played per death', dec: 1, u: 'h', f: function (d) { return d.hours >= 0.1 ? d.hours / Math.max(1, d.deaths) : null; }, note: function (d) { return d.deaths === 0 ? 'no deaths' : ''; } },
     { i: '🧭', t: 'Explorer', s: 'kilometers per hour of play', dec: 2, u: 'km/h', f: function (d) { return rate(d.distKm, d); } },
     { i: '🧱', t: 'Builder', s: 'blocks placed per hour', dec: 0, u: '/h', f: function (d) { return rate(d.placed, d); } },
@@ -547,13 +548,28 @@ $template = @'
     return h + '</tbody></table>';
   }
 
+  function funCard(icon, title, sub, list, dec, unit) {
+    var h = '<div class="fc"><h3>' + icon + ' ' + title + '</h3><div class="sub">' + esc(sub) + '</div>';
+    if (!list.length) {
+      h += '<div class="none">Not enough data yet</div>';
+    } else {
+      var max = list[0].v;
+      list.slice(0, 3).forEach(function (e, idx) {
+        h += '<div class="fr"><span>' + MEDAL[idx + 1] + '</span><span class="nm">' + esc(e.n) + '</span>' +
+             '<span class="val">' + fmt(e.v, dec) + (unit ? ' <small>' + unit + '</small>' : '') + (e.note ? ' <small>· ' + e.note + '</small>' : '') + '</span>' +
+             '<div class="bar"><i style="width:' + Math.max(3, e.v / max * 100).toFixed(1) + '%"></i></div></div>';
+      });
+    }
+    return h + '</div>';
+  }
+
   function viewFun(vals, nicks) {
     var D = {};
     nicks.forEach(function (n) { D[n] = derive(vals[n]); });
     function sum(k) { return nicks.reduce(function (s, n) { return s + D[n][k]; }, 0); }
 
     var kp = [
-      [fmt(sum('hours'), 1), 'hours played'], [fmt(sum('mined')), 'blocks mined'], [fmt(sum('mobKills')), 'mobs slain'],
+      [fmt(sum('hours'), 1) + ' h', '= ' + fmt(sum('hours') / 24, 1) + ' days played'], [fmt(sum('mined')), 'blocks mined'], [fmt(sum('mobKills')), 'mobs slain'],
       [fmt(sum('distKm'), 1), 'km travelled'], [fmt(sum('crafted')), 'items crafted'], [fmt(sum('deaths')), 'deaths']
     ];
     var h = '<div class="fun"><div class="kpis">';
@@ -567,19 +583,19 @@ $template = @'
         if (v != null && isFinite(v) && v > 0) list.push({ n: n, v: v, note: m.note ? m.note(D[n]) : '' });
       });
       list.sort(function (a, b) { return b.v - a.v; });
-      h += '<div class="fc"><h3>' + m.i + ' ' + m.t + '</h3><div class="sub">' + esc(m.s) + '</div>';
-      if (!list.length) {
-        h += '<div class="none">Not enough data yet</div>';
-      } else {
-        var max = list[0].v;
-        list.slice(0, 3).forEach(function (e, idx) {
-          h += '<div class="fr"><span>' + MEDAL[idx + 1] + '</span><span class="nm">' + esc(e.n) + '</span>' +
-               '<span class="val">' + fmt(e.v, m.dec) + (m.u ? ' <small>' + m.u + '</small>' : '') + (e.note ? ' <small>· ' + e.note + '</small>' : '') + '</span>' +
-               '<div class="bar"><i style="width:' + Math.max(3, e.v / max * 100).toFixed(1) + '%"></i></div></div>';
-        });
-      }
-      h += '</div>';
+      h += funCard(m.i, m.t, m.s, list, m.dec, m.u);
     });
+
+    // Co zabilo hráče nejčastěji (součet přes všechny hráče)
+    var kb = {};
+    nicks.forEach(function (n) {
+      for (var k in vals[n]) { if (k.indexOf('killed_by/') === 0) kb[k] = (kb[k] || 0) + vals[n][k]; }
+    });
+    var killers = Object.keys(kb).map(function (k) { return { n: pretty(k.slice(10)), v: kb[k] }; })
+      .filter(function (e) { return e.v > 0; })
+      .sort(function (a, b) { return b.v - a.v; });
+    h += funCard('☠️', 'Deadliest mobs', 'what killed players most (server total)', killers, 0, 'deaths');
+
     return h + '</div></div>';
   }
 
