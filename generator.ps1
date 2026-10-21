@@ -178,6 +178,13 @@ if (Test-Path $deathsHistoryFile) {
 
 # 2) všechny lokální logy
 $logFiles = @(Get-ChildItem $logsFolder -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(\d{4}-\d{2}-\d{2}-\d+\.log\.gz|latest\.log)$' })
+# soubory chronologicky (2026-10-03-2 před 2026-10-03-10, latest.log nakonec)
+$logFiles = @($logFiles | Sort-Object { if ($_.Name -match '^(\d{4}-\d{2}-\d{2})-(\d+)\.log\.gz$') { "$($Matches[1])-" + $Matches[2].PadLeft(4, '0') } else { '9999' } })
+
+$joinRe = '^\[(\d{2}:\d{2}:\d{2})\] \[[^\]]*/INFO\]: (?:System chat: )?([A-Za-z0-9_]{3,16}) (joined|left) the game$'
+$stopRe = '^\[(\d{2}:\d{2}:\d{2})\] \[[^\]]*/INFO\]: (?:System chat: )?Stopping (?:the )?server$'
+$events = New-Object System.Collections.Generic.List[object]
+
 foreach ($lf in $logFiles) {
     if ($lf.Name -match '^(\d{4}-\d{2}-\d{2})-\d+\.log\.gz$') {
         $day = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $inv)
@@ -185,9 +192,14 @@ foreach ($lf in $logFiles) {
         $day = [TimeZoneInfo]::ConvertTimeFromUtc($lf.LastWriteTimeUtc, $tz).Date
     }
     foreach ($line in (Read-LogLines $lf.FullName)) {
-        if ($line -notmatch $deathRe) { continue }
-        $when = $day.Add([TimeSpan]::Parse($Matches[1], $inv))
-        Add-Death $when.ToString('yyyy-MM-dd HH:mm:ss', $inv) $when.ToString('dd.MM.yyyy HH:mm:ss', $inv) $Matches[2] $Matches[3]
+        if ($line -match $deathRe) {
+            $when = $day.Add([TimeSpan]::Parse($Matches[1], $inv))
+            Add-Death $when.ToString('yyyy-MM-dd HH:mm:ss', $inv) $when.ToString('dd.MM.yyyy HH:mm:ss', $inv) $Matches[2] $Matches[3]
+        } elseif ($line -match $joinRe) {
+            $events.Add(@{ w = $day.Add([TimeSpan]::Parse($Matches[1], $inv)); k = $Matches[3]; n = $Matches[2] })
+        } elseif ($line -match $stopRe) {
+            $events.Add(@{ w = $day.Add([TimeSpan]::Parse($Matches[1], $inv)); k = 'stop'; n = '' })
+        }
     }
 }
 
@@ -199,6 +211,77 @@ $deathsFrom = if ($deaths.Count -gt 0) { $deaths[-1].t.Substring(0, 10) } else {
     (Join-Path (Get-Location) $deathsHistoryFile),
     (ConvertTo-Json -InputObject $deaths -Depth 3 -Compress),
     [System.Text.UTF8Encoding]::new($false))
+
+# --- SEZENÍ HRÁČŮ (joined/left) + AKTIVITA ---
+$sessSeen = @{}
+$sessAll  = New-Object System.Collections.Generic.List[object]
+
+function Add-SessionRaw([string]$n, [string]$s, [string]$e) {
+    $key = "$n|$s|$e"
+    if ($sessSeen.ContainsKey($key)) { return }
+    $sessSeen[$key] = $true
+    $sessAll.Add([ordered]@{ n = $n; s = $s; e = $e })
+}
+function Add-Session([string]$n, [DateTime]$a, [DateTime]$b) {
+    $dur = ($b - $a).TotalMinutes
+    if ($dur -le 0 -or $dur -gt 960) { return }            # nesmysl (chybějící řádek v logu)
+    Add-SessionRaw $n $a.ToString('yyyy-MM-dd HH:mm:ss', $inv) $b.ToString('yyyy-MM-dd HH:mm:ss', $inv)
+}
+
+# 1) uložená historie sezení
+$sessHistoryFile = Join-Path $historyFolder 'sessions.json'
+if (Test-Path $sessHistoryFile) {
+    try {
+        foreach ($h in @(Get-Content -Path $sessHistoryFile -Raw | ConvertFrom-Json)) { Add-SessionRaw $h.n $h.s $h.e }
+    } catch { Write-Warning "sessions.json se nepodařilo načíst: $($_.Exception.Message)" }
+}
+
+# 2) sezení z lokálních logů (nedokončená sezení se zahodí; hráč online se dopočítá příště)
+$openS = @{}
+foreach ($ev in $events) {
+    switch ($ev.k) {
+        'joined' { $openS[$ev.n] = $ev.w }                  # předchozí nedokončené (pád serveru) se zahodí
+        'left'   { if ($openS.ContainsKey($ev.n)) { Add-Session $ev.n $openS[$ev.n] $ev.w; $openS.Remove($ev.n) } }
+        'stop'   { foreach ($pn in @($openS.Keys)) { Add-Session $pn $openS[$pn] $ev.w }; $openS.Clear() }
+    }
+}
+[object[]]$sessions = @($sessAll | Sort-Object { $_.s })
+
+# 3) uložení historie sezení
+[System.IO.File]::WriteAllText(
+    (Join-Path (Get-Location) $sessHistoryFile),
+    (ConvertTo-Json -InputObject $sessions -Depth 3 -Compress),
+    [System.Text.UTF8Encoding]::new($false))
+
+# 4) agregace: minuty podle (den v týdnu × hodina) a podle dne, pro každého hráče
+$actHours = @{}; $actDays = @{}; $actSess = @{}
+foreach ($se in $sessions) {
+    $a = [DateTime]::ParseExact($se.s, 'yyyy-MM-dd HH:mm:ss', $inv)
+    $b = [DateTime]::ParseExact($se.e, 'yyyy-MM-dd HH:mm:ss', $inv)
+    $pn = $se.n
+    if (-not $actHours.ContainsKey($pn)) { $actHours[$pn] = New-Object 'double[]' 168; $actDays[$pn] = @{}; $actSess[$pn] = 0 }
+    $actSess[$pn]++
+    $cur = $a
+    while ($cur -lt $b) {
+        $hourEnd = $cur.Date.AddHours($cur.Hour + 1)
+        $segEnd  = if ($b -lt $hourEnd) { $b } else { $hourEnd }
+        $mins    = ($segEnd - $cur).TotalMinutes
+        $idx     = ((([int]$cur.DayOfWeek) + 6) % 7) * 24 + $cur.Hour      # pondělí = 0
+        $actHours[$pn][$idx] += $mins
+        $dk = $cur.ToString('yyyy-MM-dd', $inv)
+        if ($actDays[$pn].ContainsKey($dk)) { $actDays[$pn][$dk] += $mins } else { $actDays[$pn][$dk] = $mins }
+        $cur = $segEnd
+    }
+}
+$aHours = [ordered]@{}; $aDays = [ordered]@{}; $aSess = [ordered]@{}
+foreach ($pn in ($actHours.Keys | Sort-Object)) {
+    $aHours[$pn] = [double[]]@($actHours[$pn] | ForEach-Object { [Math]::Round($_, 1) })
+    $dd = [ordered]@{}
+    foreach ($k in ($actDays[$pn].Keys | Sort-Object)) { $dd[$k] = [Math]::Round($actDays[$pn][$k], 1) }
+    $aDays[$pn] = $dd
+    $aSess[$pn] = $actSess[$pn]
+}
+$activity = [ordered]@{ hours = $aHours; days = $aDays; sessions = $aSess }
 
 # --- SNAPSHOT: jednou denně (první běh dne = stav na začátku dne) ---
 $snapFile = Join-Path $historyFolder "snap_$todayStr.json"
@@ -258,6 +341,7 @@ $data = [ordered]@{
     periods    = $periods
     deaths     = $deaths
     deathsInfo = [ordered]@{ files = $logFiles.Count; from = $deathsFrom }
+    activity   = $activity
 }
 $dataJson = ($data | ConvertTo-Json -Depth 10 -Compress).Replace('</', '<\/')
 
@@ -393,6 +477,25 @@ $template = @'
   table.dt td.who { color: var(--emerald); font-weight: 600; }
   table.dt tbody td { height: 34px; }
 
+  /* záložka Activity */
+  .apanel { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .apanel h3 { margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: 15px; font-weight: 700; }
+  .apanel .sub { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
+  .hm { max-width: 980px; }
+  .hm-g { display: grid; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); gap: 3px; align-items: center; }
+  .hm-g .c { aspect-ratio: 1; min-height: 11px; border-radius: 3px; }
+  .hm-g .hl, .hm-g .dl { font-size: 11px; color: var(--muted); text-align: center; }
+  .hm-g .dl { text-align: left; }
+  .cal-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .cal { display: flex; gap: 3px; width: max-content; }
+  .cal .wk { display: flex; flex-direction: column; gap: 3px; }
+  .cal .wl { height: 14px; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: visible; }
+  .cal .wd { height: 13px; font-size: 10px; line-height: 13px; color: var(--muted); padding-right: 4px; }
+  .cal .d { width: 13px; height: 13px; border-radius: 3px; }
+  .cal .d.nil { background: transparent; }
+  .legend { display: flex; align-items: center; gap: 4px; margin-top: 8px; color: var(--muted); font-size: 11px; }
+  .legend i { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+
   @media (max-width: 720px) {
     html, body { height: auto; min-height: 100%; overflow: auto; -webkit-text-size-adjust: 100%; }
     .app { height: auto; min-height: 100vh; min-height: 100dvh; padding: 12px 12px calc(76px + env(safe-area-inset-bottom)); gap: 10px; }
@@ -401,7 +504,7 @@ $template = @'
     .update-time { font-size: 12px; margin-top: 2px; }
 
     #main-tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: flex; gap: 0; border-radius: 0; border-width: 1px 0 0 0; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: rgba(26,31,40,.96); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-    #main-tabs .tab-btn { flex: 1; padding: 12px 4px; text-align: center; font-size: 14px; }
+    #main-tabs .tab-btn { flex: 1; padding: 10px 2px; text-align: center; font-size: 12px; line-height: 1.2; white-space: normal; }
 
     .toolbar { display: contents; }
     #period-tabs { display: flex; position: sticky; top: 8px; z-index: 30; box-shadow: 0 0 0 8px var(--bg); }
@@ -433,6 +536,7 @@ $template = @'
       <button class="tab-btn" data-view="stats">Stats 📈</button>
       <button class="tab-btn" data-view="fun">Fun facts ✨</button>
       <button class="tab-btn" data-view="deaths">Deaths 💀</button>
+      <button class="tab-btn" data-view="activity">Activity 🔥</button>
       <button class="tab-btn" data-view="map">World map 🗺️</button>
     </nav>
   </header>
@@ -453,6 +557,9 @@ $template = @'
     </div>
     <div class="controls" id="deathControls" hidden>
       <select class="ctl" id="deathPlayer" aria-label="Player"></select>
+    </div>
+    <div class="controls" id="actControls" hidden>
+      <select class="ctl" id="actPlayer" aria-label="Player"></select>
     </div>
   </div>
 
@@ -510,7 +617,7 @@ $template = @'
     { i: '🎣', t: 'Angler', s: 'fish caught per hour', dec: 1, u: '/h', f: function (d) { return rate(d.fish, d); } }
   ];
 
-  var ui = { view: 'stats', period: 'all', showAll: false, q: '', cat: '', dp: '' };
+  var ui = { view: 'stats', period: 'all', showAll: false, q: '', cat: '', dp: '', ap: '' };
   var mq = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { matches: false };
   function isMobile() { return mq.matches; }
   var cache = {};
@@ -840,6 +947,109 @@ $template = @'
     return h + '</tbody></table></div></div>';
   }
 
+  var DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var DOW_LONG = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function pad2(x) { return (x < 10 ? '0' : '') + x; }
+  function ymd(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function parseYmd(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function heat(v, max) {
+    if (!(v > 0) || !(max > 0)) return 'rgba(255,255,255,.045)';
+    return 'rgba(61,220,151,' + (0.16 + 0.84 * Math.pow(v / max, 0.6)).toFixed(2) + ')';
+  }
+  function legend() {
+    var h = '<div class="legend">Less';
+    [0, 0.15, 0.35, 0.6, 1].forEach(function (t) { h += '<i style="background:' + heat(t, 1) + '"></i>'; });
+    return h + 'More</div>';
+  }
+
+  function viewActivity() {
+    var A = DATA.activity || {};
+    var H = A.hours || {}, D = A.days || {}, S = A.sessions || {};
+    var names = Object.keys(H).sort(function (a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); });
+
+    var sel = el('actPlayer');
+    var opts = '<option value="">All players</option>';
+    names.forEach(function (n) { opts += '<option value="' + esc(n) + '">' + esc(n) + '</option>'; });
+    sel.innerHTML = opts;
+    if (names.indexOf(ui.ap) < 0) ui.ap = '';
+    sel.value = ui.ap;
+
+    if (!names.length) return '<div class="empty">No activity found in the server logs yet.</div>';
+
+    var pick = ui.ap ? [ui.ap] : names;
+    var grid = [], i;
+    for (i = 0; i < 168; i++) grid.push(0);
+    var days = {}, sessions = 0;
+    pick.forEach(function (n) {
+      var a = H[n] || [];
+      for (var j = 0; j < 168; j++) grid[j] += a[j] || 0;
+      var dd = D[n] || {};
+      for (var k in dd) days[k] = (days[k] || 0) + dd[k];
+      sessions += S[n] || 0;
+    });
+
+    var total = 0, maxCell = 0, maxIdx = 0;
+    for (i = 0; i < 168; i++) { total += grid[i]; if (grid[i] > maxCell) { maxCell = grid[i]; maxIdx = i; } }
+    var maxDay = 0, maxDayKey = '';
+    for (var dk in days) if (days[dk] > maxDay) { maxDay = days[dk]; maxDayKey = dk; }
+    if (!total) return '<div class="empty">No activity for this player yet.</div>';
+
+    var bd = maxDayKey ? parseYmd(maxDayKey) : null;
+    var h = '<div class="fun"><div class="kpis">' +
+      '<div class="kpi"><b>' + fmt(total / 60, 1) + ' h</b><span>online' + (ui.ap ? ' · ' + nick(ui.ap) : ' (all players together)') + '</span></div>' +
+      '<div class="kpi"><b>' + fmt(sessions) + '</b><span>sessions · avg ' + fmt(sessions ? total / sessions : 0) + ' min</span></div>' +
+      '<div class="kpi"><b>' + DOW[Math.floor(maxIdx / 24)] + ' ' + (maxIdx % 24) + ':00</b><span>busiest hour of the week</span></div>' +
+      '<div class="kpi"><b>' + (bd ? bd.getDate() + '. ' + (bd.getMonth() + 1) + '. ' + bd.getFullYear() : '—') + '</b><span>busiest day · ' + fmt(maxDay / 60, 1) + ' h</span></div>' +
+      '</div>';
+
+    h += '<div class="note">From server logs (join / leave times) · times as written in the log</div>';
+
+    // 1) den v týdnu × hodina
+    h += '<div class="apanel"><h3>🕒 When they play</h3><div class="sub">hours online by weekday and hour of day, all dates added together</div><div class="hm"><div class="hm-g"><span></span>';
+    for (var hr = 0; hr < 24; hr++) h += '<span class="hl">' + (hr % 3 === 0 ? hr : '') + '</span>';
+    for (var d = 0; d < 7; d++) {
+      h += '<span class="dl">' + DOW[d] + '</span>';
+      for (hr = 0; hr < 24; hr++) {
+        var v = grid[d * 24 + hr];
+        h += '<i class="c" style="background:' + heat(v, maxCell) + '" title="' + DOW_LONG[d] + ' ' + hr + ':00–' + (hr + 1) + ':00 · ' + fmt(v / 60, 1) + ' h"></i>';
+      }
+    }
+    h += '</div>' + legend() + '</div></div>';
+
+    // 2) kalendář po dnech
+    var allDays = Object.keys(days).sort();
+    var first = parseYmd(allDays[0]);
+    Object.keys(D).forEach(function (n) { var ks = Object.keys(D[n]).sort(); if (ks.length && parseYmd(ks[0]) < first) first = parseYmd(ks[0]); });
+    var now = new Date();
+    var last = parseYmd(allDays[allDays.length - 1]);
+    if (now > last) last = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var cur = new Date(first.getFullYear(), first.getMonth(), first.getDate());
+    cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));        // pondělí
+
+    var cal = '<div class="wk"><span class="wl"></span>';
+    for (d = 0; d < 7; d++) cal += '<span class="wd">' + (d % 2 === 0 ? DOW[d] : '') + '</span>';
+    cal += '</div>';
+    var wi = 0;
+    while (cur <= last) {
+      var label = (wi === 0 || cur.getDate() <= 7) ? MON[cur.getMonth()] : '';
+      cal += '<div class="wk"><span class="wl">' + label + '</span>';
+      for (d = 0; d < 7; d++) {
+        if (cur > last) { cal += '<i class="d nil"></i>'; }
+        else {
+          var key = ymd(cur), val = days[key] || 0;
+          cal += '<i class="d" style="background:' + heat(val, maxDay) + '" title="' + DOW[d] + ' ' + cur.getDate() + '. ' + (cur.getMonth() + 1) + '. ' + cur.getFullYear() + ' · ' + fmt(val / 60, 1) + ' h"></i>';
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      cal += '</div>';
+      wi++;
+    }
+    h += '<div class="apanel"><h3>📅 Day by day</h3><div class="sub">hours online per day</div><div class="cal-wrap"><div class="cal">' + cal + '</div></div>' + legend() + '</div>';
+
+    return h + '</div>';
+  }
+
   function setActive(selector, attr, value) {
     var btns = document.querySelectorAll(selector);
     for (var i = 0; i < btns.length; i++) {
@@ -850,15 +1060,16 @@ $template = @'
   }
 
   function update() {
-    var isMap = ui.view === 'map', isStats = ui.view === 'stats', isDeaths = ui.view === 'deaths';
+    var isMap = ui.view === 'map', isStats = ui.view === 'stats', isDeaths = ui.view === 'deaths', isAct = ui.view === 'activity';
     setActive('#main-tabs .tab-btn', 'data-view', ui.view);
     setActive('#period-tabs .tab-btn', 'data-period', ui.period);
 
     el('toolbar').hidden = isMap;
     el('statsControls').hidden = !isStats;
     el('deathControls').hidden = !isDeaths;
-    el('period-tabs').hidden = isDeaths;
-    el('note').hidden = isDeaths;
+    el('actControls').hidden = !isAct;
+    el('period-tabs').hidden = isDeaths || isAct;
+    el('note').hidden = isDeaths || isAct;
     el('cat').style.display = ui.showAll ? '' : 'none';
     el('view-data').style.display = isMap ? 'none' : 'block';
     el('view-map').style.display = isMap ? 'block' : 'none';
@@ -876,6 +1087,7 @@ $template = @'
       }
       if (isStats) el('content').innerHTML = viewStats(vals, nicks);
       else if (isDeaths) el('content').innerHTML = viewDeaths();
+      else if (isAct) el('content').innerHTML = viewActivity();
       else el('content').innerHTML = viewFun(vals, nicks);
       el('content').scrollTop = 0;
     }
@@ -891,12 +1103,13 @@ $template = @'
     el('showAll').addEventListener('change', function () { ui.showAll = this.checked; update(); });
     el('cat').addEventListener('change', function () { ui.cat = this.value; update(); });
     el('deathPlayer').addEventListener('change', function () { ui.dp = this.value; update(); });
+    el('actPlayer').addEventListener('change', function () { ui.ap = this.value; update(); });
     if (mq.addEventListener) mq.addEventListener('change', update);
     else if (mq.addListener) mq.addListener(update);
   }
 
   var parts = location.hash.replace('#', '').split('/');
-  if (['stats', 'fun', 'deaths', 'map'].indexOf(parts[0]) >= 0) ui.view = parts[0];
+  if (['stats', 'fun', 'deaths', 'activity', 'map'].indexOf(parts[0]) >= 0) ui.view = parts[0];
   if (['all', 'month', 'week', 'day'].indexOf(parts[1]) >= 0) ui.period = parts[1];
   bind();
   update();
@@ -908,4 +1121,4 @@ $template = @'
 
 $html = $template.Replace('__UPDATED__', $updated).Replace('__DATA__', $dataJson)
 [System.IO.File]::WriteAllText((Join-Path (Get-Location) 'index.html'), $html, [System.Text.UTF8Encoding]::new($false))
-Write-Host "index.html vygenerován ($($players.Count) hráčů, snapshotů: $($snaps.Count), smrtí: $($deaths.Count))"
+Write-Host "index.html vygenerován ($($players.Count) hráčů, snapshotů: $($snaps.Count), smrtí: $($deaths.Count), sezení: $($sessions.Count))"
