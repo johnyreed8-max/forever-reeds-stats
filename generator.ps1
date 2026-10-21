@@ -56,8 +56,9 @@ if ($players.Count -eq 0) { throw 'Nenalezeny žádné soubory statistik, index.
 # Chyba FTP nikdy neshodí generování – vypíše se jen varování.
 # =====================================================================
 $ftpHost     = $env:FTP_HOST
-$ftpLogsPath = if ($env:FTP_LOGS_PATH) { $env:FTP_LOGS_PATH } else { '/logs' }
-$ftpLogsPath = '/' + $ftpLogsPath.Trim('/')
+# Kandidáti na složku s logy (použije se první, která jde vypsat). Vlastní cestu lze zadat v FTP_LOGS_PATH.
+$ftpLogsCandidates = if ($env:FTP_LOGS_PATH) { @($env:FTP_LOGS_PATH) } else { @('/minecraft/Forever Reeds/logs', '/logs') }
+$ftpLogsCandidates = @($ftpLogsCandidates | ForEach-Object { '/' + $_.Trim('/') })
 $ftpSsl      = ($env:FTP_SSL -eq 'true' -or $env:FTP_SSL -eq '1')
 
 function New-FtpRequest([string]$path, [string]$method) {
@@ -104,7 +105,15 @@ if ($ftpHost -and $env:FTP_USER) {
         if ($ftpSsl -and $env:FTP_SKIP_CERT_CHECK -eq '1') {
             [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
         }
-        $remoteNames = Get-FtpListing $ftpLogsPath
+        $remoteNames = @(); $ftpLogsPath = $null
+        foreach ($cand in $ftpLogsCandidates) {
+            try {
+                $names = Get-FtpListing $cand
+                if (@($names | Where-Object { $_ -match '\.log(\.gz)?$' }).Count -gt 0) { $ftpLogsPath = $cand; $remoteNames = $names; break }
+            } catch { Write-Host "FTP: složka '$cand' nejde vypsat ($($_.Exception.Message))" }
+        }
+        if (-not $ftpLogsPath) { throw "nenalezena složka s logy (zkoušeno: $($ftpLogsCandidates -join ', '))" }
+        Write-Host "FTP: logy ze složky $ftpLogsPath"
         foreach ($name in $remoteNames) {
             $isArchive = $name -match '^\d{4}-\d{2}-\d{2}-\d+\.log\.gz$'
             $isLatest  = $name -eq 'latest.log'
@@ -112,18 +121,22 @@ if ($ftpHost -and $env:FTP_USER) {
             $local = Join-Path $logsFolder $name
             # archivní .log.gz se nemění -> stačí stáhnout jednou; latest.log vždy znovu
             if ($isArchive -and (Test-Path $local) -and (Get-Item $local).Length -gt 0) { continue }
-            Get-FtpFile "$ftpLogsPath/$name" $local
-            if ($isLatest) {
-                try { (Get-Item $local).LastWriteTimeUtc = Get-FtpModified "$ftpLogsPath/$name" } catch { }
+            try {
+                Get-FtpFile "$ftpLogsPath/$name" $local
+                if ($isLatest) {
+                    try { (Get-Item $local).LastWriteTimeUtc = Get-FtpModified "$ftpLogsPath/$name" } catch { }
+                }
+                $ftpDownloaded++
+            } catch {
+                Write-Warning "FTP: soubor '$name' se nepodařilo stáhnout: $($_.Exception.Message)"
             }
-            $ftpDownloaded++
         }
         Write-Host "FTP logy: staženo souborů: $ftpDownloaded"
     } catch {
         Write-Warning "FTP logy se nepodařilo stáhnout: $($_.Exception.Message) – pokračuji s tím, co je uloženo."
     }
 } else {
-    Write-Host 'FTP_HOST / FTP_USER nenastaveno – stahování logů přeskočeno.'
+    Write-Host 'FTP_HOST nenastaveno – logy se berou z lokální složky logs/ (stahuje je krok workflow) a z uložené historie.'
 }
 
 # --- SMRTI HRÁČŮ Z LOGŮ SERVERU ---
