@@ -41,13 +41,21 @@ jobs:
           exit 1
         fi
 
-    - name: Stažení logů z Hostify FTP
+    -    - name: Stažení logů z Hostify FTP
       run: |
         mkdir -p logs
+        if [ -f stats_history/deaths.json ]; then
+          # historie už existuje -> stačí latest.log a archivy z posledních dnů
+          DAYS=$(for i in 0 1 2 3; do date -d "-$i day" +%Y-%m-%d; done | sed 's/$/-*.log.gz/' | paste -sd,)
+          ACCEPT="latest.log,$DAYS"
+        else
+          ACCEPT="latest.log,*.log.gz"
+        fi
+        echo "Stahuji: $ACCEPT"
         wget --ftp-user="${{ secrets.FTP_USER }}" --ftp-password="${{ secrets.FTP_PASSWORD }}" \
           "ftp://ftp.hostify.cz:21/minecraft/Forever%20Reeds/logs/*" \
-          --no-directories --accept="*.log.gz,latest.log" -P "logs" -N -nv || echo "::warning::Logy se nepodařilo stáhnout"
-        echo "Staženo logů: $(find logs -type f | wc -l)"
+          --no-directories --accept="$ACCEPT" -P "logs" -N -nv || echo "::warning::Logy se nepodařilo stáhnout"
+        echo "Staženo logů: $(find logs -type f ! -name '.listing' | wc -l)"
 
     - name: Spuštění kompilace do HTML
       shell: pwsh
