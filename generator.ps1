@@ -898,7 +898,7 @@ $template = @'
     var uuid = (DATA.avatars || {})[n];
     var c = NICK_COLORS[n] || '#3ddc97';
     var h = '<span class="rp-av" style="background:' + c + '">' + initials(n);
-    if (uuid) h += '<img src="https://crafatar.com/avatars/' + uuid + '?size=64&overlay" alt="" loading="lazy" onerror="this.remove()">';
+    if (uuid) h += '<img src="https://mc-heads.net/avatar/' + uuid + '/64" alt="" loading="lazy" onerror="this.remove()">';
     return h + '</span>';
   }
 
